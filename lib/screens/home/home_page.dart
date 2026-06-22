@@ -1124,6 +1124,7 @@ class _HomePageState extends State<HomePage> {
     );
   }
 
+  // ignore: unused_element
   IconData _getCategoryIcon(String category) {
     switch (category) {
       case 'Beach': return Icons.beach_access_rounded;
