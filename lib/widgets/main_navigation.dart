@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../theme/palette.dart';
 import '../screens/home/home_page.dart';
 import '../screens/world/world_page.dart';
+import '../screens/route/route_page.dart';
 import '../screens/favorite/favorite_page.dart';
 import '../screens/profile/profile_page.dart';
 
@@ -24,7 +25,7 @@ class _MainNavigationState extends State<MainNavigation> {
 
   static const List<_NavTab> _tabs = [
     _NavTab(inactiveIcon: Icons.home_outlined, activeIcon: Icons.home_rounded, label: 'Home'),
-    _NavTab(inactiveIcon: Icons.language_outlined, activeIcon: Icons.language_rounded, label: 'World'),
+    _NavTab(inactiveIcon: Icons.map_outlined, activeIcon: Icons.map_rounded, label: 'Map'),
     _NavTab(inactiveIcon: Icons.route_outlined, activeIcon: Icons.route_rounded, label: 'Route'),
     _NavTab(inactiveIcon: Icons.favorite_border_rounded, activeIcon: Icons.favorite_rounded, label: 'Favorite'),
     _NavTab(inactiveIcon: Icons.person_outline_rounded, activeIcon: Icons.person_rounded, label: 'Profile'),
@@ -33,7 +34,7 @@ class _MainNavigationState extends State<MainNavigation> {
   late final List<Widget> _pages = [
     const HomePage(),
     const WorldPage(),
-    const _PlaceholderPage(icon: Icons.route_rounded, title: 'Route Planner', subtitle: 'Create your perfect itinerary for a day tour or a week-long vacation.'),
+    const RoutePage(),
     const FavoritePage(),
     const ProfilePage(),
   ];
