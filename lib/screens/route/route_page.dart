@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
 import '../../theme/palette.dart';
 import '../../algorithms/moga_engine.dart';
+import '../../state/app_state.dart';
+import 'package:latlong2/latlong.dart';
+import 'route_results_page.dart';
 
 typedef _P = AppPalette;
 
@@ -22,6 +25,24 @@ const _samalDestinations = <Destination>[
   Destination(name: 'Camp Sabros Falls', location: 'Penaplata, Samal', lat: 7.0880, lng: 125.7300, visitHours: 1.5, category: 'Falls'),
 ];
 
+// ── Cosmetic-only placeholder info (rating + blurb), keyed by index.
+// Not part of your real Destination model — purely for the detail sheet
+// until real photos/ratings/descriptions are wired in.
+const _placeholderRatings = <double>[4.8, 4.9, 4.7, 4.6, 4.5, 4.8, 4.7, 4.6, 4.8, 4.4, 4.5];
+const _placeholderBlurbs = <String>[
+  'A wide stretch of pale sand facing the Davao Gulf, calm enough for swimming most of the year.',
+  'A long-running pearl farm turned resort, with cabanas built out over clear water.',
+  'A set of cascading freshwater pools a short walk from the road, popular for a midday dip.',
+  'A water park with slides and pools built for a full-day family visit.',
+  'Home to one of the largest colonies of fruit bats in the world, viewable up close.',
+  'A quieter island off Kaputian with thinner crowds and good snorkeling reefs.',
+  'A sandbar that shrinks and grows with the tide, walkable to at low water.',
+  'A modest peak with a clear view back over the channel toward Davao City.',
+  'A beach resort with simple cottages, good for an unhurried overnight stay.',
+  'A small limestone cave system near Penaplata, lightly developed for visitors.',
+  'A second falls near Camp Sabros, less crowded than Hagimit on most days.',
+];
+
 // ═══════════════════════════════════════════════════════════════════
 //  ROUTE PAGE
 // ═══════════════════════════════════════════════════════════════════
@@ -33,30 +54,73 @@ class RoutePage extends StatefulWidget {
   State<RoutePage> createState() => _RoutePageState();
 }
 
-class _RoutePageState extends State<RoutePage> with SingleTickerProviderStateMixin {
+class _RoutePageState extends State<RoutePage> with TickerProviderStateMixin {
   // ── State ────────────────────────────────────────────────────────
-  bool _isDayTour = true; // true = Day Tour, false = Itinerary
+  bool _isDayTour = true; // true = Day Escape, false = Itinerary Escape
   DateTime _selectedDate = DateTime.now();
   DateTime _endDate = DateTime.now().add(const Duration(days: 2));
+
+  // Day Escape: a single shared selection set.
   final Set<int> _selectedDestinations = {};
+  String _daySearchQuery = '';
+
+  // Itinerary Escape: one selection set + one search query PER day.
+  List<Set<int>> _dayDestinations = [];
+  List<String> _daySearchQueries = [];
+
   bool _isOptimizing = false;
-  RouteResult? _dayResult;
-  ItineraryResult? _itineraryResult;
-  late AnimationController _pulseController;
+
+  late AnimationController _pulseController; // idle "ready" breathing pulse
+  late AnimationController _listController; // staggered entrance for destination list
+
+  final ScrollController _scrollController = ScrollController();
 
   @override
   void initState() {
     super.initState();
     _pulseController = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 1200),
+      duration: const Duration(milliseconds: 1400),
     )..repeat(reverse: true);
+
+    _listController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 700),
+    )..forward();
+
+    _syncDayBuckets();
   }
 
   @override
   void dispose() {
     _pulseController.dispose();
+    _listController.dispose();
+    _scrollController.dispose();
     super.dispose();
+  }
+
+  int get _tripDays => _endDate.difference(_selectedDate).inDays + 1;
+
+  /// Keeps _dayDestinations / _daySearchQueries sized to the current
+  /// date range, preserving existing picks when the range grows/shrinks.
+  void _syncDayBuckets() {
+    final days = _tripDays.clamp(1, 365);
+    while (_dayDestinations.length < days) {
+      _dayDestinations.add({});
+      _daySearchQueries.add('');
+    }
+    while (_dayDestinations.length > days) {
+      _dayDestinations.removeLast();
+      _daySearchQueries.removeLast();
+    }
+  }
+
+  /// True if [destIndex] was already picked on an earlier day than [dayIndex].
+  bool _isUsedOnEarlierDay(int destIndex, int dayIndex) {
+    for (var d = 0; d < dayIndex; d++) {
+      if (_dayDestinations[d].contains(destIndex)) return true;
+    }
+    return false;
   }
 
   // ── Icon for category ─────────────────────────────────────────
@@ -84,62 +148,103 @@ class _RoutePageState extends State<RoutePage> with SingleTickerProviderStateMix
     }
   }
 
-  // ── Run MOGA ──────────────────────────────────────────────────
+  // ── Run MOGA, then push the results page ───────────────────────
   Future<void> _optimize() async {
-    if (_selectedDestinations.isEmpty) return;
+    final hasSelection = _isDayTour
+        ? _selectedDestinations.isNotEmpty
+        : _dayDestinations.any((s) => s.isNotEmpty);
+    if (!hasSelection) return;
 
-    setState(() {
-      _isOptimizing = true;
-      _dayResult = null;
-      _itineraryResult = null;
-    });
-
-    // Small delay so the UI shows the loading state
+    setState(() => _isOptimizing = true);
     await Future.delayed(const Duration(milliseconds: 300));
 
-    final selected = _selectedDestinations.toList()..sort();
-    final dests = selected.map((i) => _samalDestinations[i]).toList();
-
-    final engine = MogaEngine(
-      destinations: dests,
-      tourHours: 9.0,
-      avgSpeedKmh: 30.0,
-      populationSize: 50,
-      generations: 100,
-    );
-
     if (_isDayTour) {
+      final selected = _selectedDestinations.toList()..sort();
+      final dests = selected.map((i) => _samalDestinations[i]).toList();
+
+      final engine = MogaEngine(
+        destinations: dests,
+        tourHours: 9.0,
+        avgSpeedKmh: 30.0,
+        populationSize: 50,
+        generations: 100,
+      );
+
       final result = engine.optimizeDayTour();
-      // Map back to original indices
       final mappedOrder = result.stopOrder.map((i) => selected[i]).toList();
-      setState(() {
-        _dayResult = RouteResult(
-          stopOrder: mappedOrder,
-          totalDistanceKm: result.totalDistanceKm,
-          totalTimeHours: result.totalTimeHours,
-          legDistances: result.legDistances,
-          legTravelMins: result.legTravelMins,
-        );
-        _isOptimizing = false;
-      });
+      final dayResult = RouteResult(
+        stopOrder: mappedOrder,
+        totalDistanceKm: result.totalDistanceKm,
+        totalTimeHours: result.totalTimeHours,
+        legDistances: result.legDistances,
+        legTravelMins: result.legTravelMins,
+      );
+
+      final polyline = mappedOrder
+          .map((idx) => LatLng(_samalDestinations[idx].lat, _samalDestinations[idx].lng))
+          .toList();
+      AppState.setActivePolyline(polyline);
+
+      if (!mounted) return;
+      setState(() => _isOptimizing = false);
+
+      Navigator.of(context).push(MaterialPageRoute(
+        builder: (_) => RouteResultsPage(
+          destinations: _samalDestinations,
+          dayResult: dayResult,
+          tripStartDate: _selectedDate,
+        ),
+      ));
     } else {
-      final days = _endDate.difference(_selectedDate).inDays + 1;
-      final result = engine.optimizeItinerary(days);
-      // Map back indices
+      // Build one combined destination list, but keep per-day grouping so
+      // the engine can optimize within each day's stops.
+      final dayIndexLists = _dayDestinations.map((s) => s.toList()..sort()).toList();
+      final allSelected = dayIndexLists.expand((l) => l).toSet().toList()..sort();
+
+      if (allSelected.isEmpty) {
+        setState(() => _isOptimizing = false);
+        return;
+      }
+
+      final dests = allSelected.map((i) => _samalDestinations[i]).toList();
+      final engine = MogaEngine(
+        destinations: dests,
+        tourHours: 9.0,
+        avgSpeedKmh: 30.0,
+        populationSize: 50,
+        generations: 100,
+      );
+
+      final result = engine.optimizeItinerary(_tripDays);
       final mappedDays = result.days.map((day) {
         return DayPlan(
           dayNumber: day.dayNumber,
-          stopOrder: day.stopOrder.map((i) => selected[i]).toList(),
+          stopOrder: day.stopOrder.map((i) => allSelected[i]).toList(),
           distanceKm: day.distanceKm,
           timeHours: day.timeHours,
           legDistances: day.legDistances,
           legTravelMins: day.legTravelMins,
         );
       }).toList();
-      setState(() {
-        _itineraryResult = ItineraryResult(days: mappedDays, totalDistanceKm: result.totalDistanceKm);
-        _isOptimizing = false;
-      });
+
+      final itineraryResult = ItineraryResult(days: mappedDays, totalDistanceKm: result.totalDistanceKm);
+
+      final polyline = mappedDays
+          .expand((d) => d.stopOrder)
+          .map((idx) => LatLng(_samalDestinations[idx].lat, _samalDestinations[idx].lng))
+          .toList();
+      AppState.setActivePolyline(polyline);
+
+      if (!mounted) return;
+      setState(() => _isOptimizing = false);
+
+      Navigator.of(context).push(MaterialPageRoute(
+        builder: (_) => RouteResultsPage(
+          destinations: _samalDestinations,
+          itineraryResult: itineraryResult,
+          tripStartDate: _selectedDate,
+        ),
+      ));
     }
   }
 
@@ -174,6 +279,7 @@ class _RoutePageState extends State<RoutePage> with SingleTickerProviderStateMix
             _endDate = _selectedDate.add(const Duration(days: 1));
           }
         }
+        _syncDayBuckets();
       });
     }
   }
@@ -183,61 +289,78 @@ class _RoutePageState extends State<RoutePage> with SingleTickerProviderStateMix
     return '${months[d.month - 1]} ${d.day}, ${d.year}';
   }
 
+  String _relativeDayLabel(DateTime d) {
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    final target = DateTime(d.year, d.month, d.day);
+    final diff = target.difference(today).inDays;
+    if (diff == 0) return 'Today';
+    if (diff == 1) return 'Tomorrow';
+    return _formatDate(d);
+  }
+
+  // ── Detail sheet ────────────────────────────────────────────────
+  void _openDetailSheet(int destIndex, {required bool isSelected, required VoidCallback onToggle}) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) => _DestinationDetailSheet(
+        destination: _samalDestinations[destIndex],
+        rating: _placeholderRatings[destIndex],
+        blurb: _placeholderBlurbs[destIndex],
+        gradient: _catGradient(_samalDestinations[destIndex].category),
+        icon: _catIcon(_samalDestinations[destIndex].category),
+        isSelected: isSelected,
+        onToggleSelect: () {
+          onToggle();
+          Navigator.pop(ctx);
+        },
+      ),
+    );
+  }
+
   // ═══════════════════════════════════════════════════════════════
   //  BUILD
   // ═══════════════════════════════════════════════════════════════
 
   @override
   Widget build(BuildContext context) {
+    _syncDayBuckets();
     return Scaffold(
       backgroundColor: Colors.transparent,
       body: SafeArea(
         child: SingleChildScrollView(
-          padding: const EdgeInsets.fromLTRB(24, 16, 24, 16),
+          controller: _scrollController,
+          padding: const EdgeInsets.fromLTRB(20, 16, 20, 16),
           child: Center(
             child: ConstrainedBox(
               constraints: const BoxConstraints(maxWidth: 600),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // ── Header ──────────────────────────────────────
-                  const Text('Route Planner',
-                      style: TextStyle(color: _P.deepNavy, fontSize: 28, fontWeight: FontWeight.w800, letterSpacing: -0.5)),
-                  const SizedBox(height: 6),
-                  const Text('Optimized with MOGA algorithm for the best travel experience.',
-                      style: TextStyle(color: _P.inkSoft, fontSize: 14, fontWeight: FontWeight.w500)),
-                  const SizedBox(height: 28),
-
-                  // ── Tour Mode Toggle ────────────────────────────
-                  _buildModeSelector(),
+                  _buildHeader(),
                   const SizedBox(height: 24),
-
-                  // ── Date Picker ─────────────────────────────────
-                  _buildDateSection(),
-                  const SizedBox(height: 28),
-
-                  // ── Destination Selector ────────────────────────
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      const Text('Select Destinations',
-                          style: TextStyle(color: _P.deepNavy, fontSize: 18, fontWeight: FontWeight.w800, letterSpacing: -0.2)),
-                      Text('${_selectedDestinations.length} selected',
-                          style: const TextStyle(color: _P.blue, fontSize: 13, fontWeight: FontWeight.w700)),
-                    ],
+                  _buildModeSelector(),
+                  const SizedBox(height: 20),
+                  AnimatedSwitcher(
+                    duration: const Duration(milliseconds: 350),
+                    transitionBuilder: (child, anim) => FadeTransition(
+                      opacity: anim,
+                      child: SizeTransition(sizeFactor: anim, child: child),
+                    ),
+                    child: _buildDateSection(),
                   ),
-                  const SizedBox(height: 14),
-                  _buildDestinationList(),
                   const SizedBox(height: 28),
 
-                  // ── Optimize Button ─────────────────────────────
+                  // ── Mode-specific content ──────────────────────
+                  AnimatedSwitcher(
+                    duration: const Duration(milliseconds: 300),
+                    child: _isDayTour ? _buildDayEscapeSection() : _buildItineraryEscapeSection(),
+                  ),
+
+                  const SizedBox(height: 26),
                   _buildOptimizeButton(),
-                  const SizedBox(height: 28),
-
-                  // ── Results ─────────────────────────────────────
-                  if (_dayResult != null) _buildDayResults(),
-                  if (_itineraryResult != null) _buildItineraryResults(),
-
                   const SizedBox(height: 40),
                 ],
               ),
@@ -245,6 +368,50 @@ class _RoutePageState extends State<RoutePage> with SingleTickerProviderStateMix
           ),
         ),
       ),
+    );
+  }
+
+  // ═══════════════════════════════════════════════════════════════
+  //  HEADER
+  // ═══════════════════════════════════════════════════════════════
+
+  Widget _buildHeader() {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Container(
+                    width: 6,
+                    height: 26,
+                    decoration: BoxDecoration(
+                      gradient: const LinearGradient(
+                        begin: Alignment.topCenter,
+                        end: Alignment.bottomCenter,
+                        colors: [_P.skyBlue, _P.blue],
+                      ),
+                      borderRadius: BorderRadius.circular(4),
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  const Text('Route Planner',
+                      style: TextStyle(color: _P.deepNavy, fontSize: 27, fontWeight: FontWeight.w800, letterSpacing: -0.6, height: 1.0)),
+                ],
+              ),
+              const SizedBox(height: 8),
+              const Padding(
+                padding: EdgeInsets.only(left: 16),
+                child: Text('Plotted stop-by-stop by the MOGA engine for the fewest backtracks.',
+                    style: TextStyle(color: _P.inkSoft, fontSize: 13.5, fontWeight: FontWeight.w500, height: 1.3)),
+              ),
+            ],
+          ),
+        ),
+      ],
     );
   }
 
@@ -257,26 +424,18 @@ class _RoutePageState extends State<RoutePage> with SingleTickerProviderStateMix
       children: [
         Expanded(child: _modeCard(
           icon: Icons.wb_sunny_rounded,
-          title: 'Day Tour',
-          subtitle: 'Explore in a single day',
+          title: 'Day Escape',
+          subtitle: 'One day, One destination',
           isSelected: _isDayTour,
-          onTap: () => setState(() {
-            _isDayTour = true;
-            _dayResult = null;
-            _itineraryResult = null;
-          }),
+          onTap: () => setState(() => _isDayTour = true),
         )),
-        const SizedBox(width: 14),
+        const SizedBox(width: 12),
         Expanded(child: _modeCard(
           icon: Icons.calendar_month_rounded,
-          title: 'Itinerary',
-          subtitle: 'Multi-day adventure',
+          title: 'Itinerary Escape',
+          subtitle: 'Multiple Destinations',
           isSelected: !_isDayTour,
-          onTap: () => setState(() {
-            _isDayTour = false;
-            _dayResult = null;
-            _itineraryResult = null;
-          }),
+          onTap: () => setState(() => _isDayTour = false),
         )),
       ],
     );
@@ -289,11 +448,11 @@ class _RoutePageState extends State<RoutePage> with SingleTickerProviderStateMix
     required bool isSelected,
     required VoidCallback onTap,
   }) {
-    return GestureDetector(
+    return _Tappable(
       onTap: onTap,
       child: AnimatedContainer(
-        duration: const Duration(milliseconds: 300),
-        curve: Curves.easeInOutCubic,
+        duration: const Duration(milliseconds: 320),
+        curve: Curves.easeOutCubic,
         padding: const EdgeInsets.all(18),
         decoration: BoxDecoration(
           gradient: isSelected
@@ -301,10 +460,14 @@ class _RoutePageState extends State<RoutePage> with SingleTickerProviderStateMix
               : null,
           color: isSelected ? null : Colors.white,
           borderRadius: BorderRadius.circular(22),
+          border: Border.all(
+            color: isSelected ? Colors.transparent : _P.iceBlue,
+            width: 1.4,
+          ),
           boxShadow: [
             BoxShadow(
-              color: isSelected ? _P.navy.withValues(alpha: 0.3) : _P.deepNavy.withValues(alpha: 0.05),
-              blurRadius: isSelected ? 16 : 10,
+              color: isSelected ? _P.navy.withValues(alpha: 0.28) : _P.deepNavy.withValues(alpha: 0.04),
+              blurRadius: isSelected ? 18 : 8,
               offset: const Offset(0, 6),
             ),
           ],
@@ -312,20 +475,31 @@ class _RoutePageState extends State<RoutePage> with SingleTickerProviderStateMix
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Container(
-              width: 44, height: 44,
-              decoration: BoxDecoration(
-                color: isSelected ? Colors.white.withValues(alpha: 0.15) : _P.iceBlue,
-                borderRadius: BorderRadius.circular(14),
-              ),
-              child: Icon(icon, color: isSelected ? _P.skyBlue : _P.blue, size: 22),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Container(
+                  width: 42, height: 42,
+                  decoration: BoxDecoration(
+                    color: isSelected ? Colors.white.withValues(alpha: 0.15) : _P.iceBlue,
+                    borderRadius: BorderRadius.circular(13),
+                  ),
+                  child: Icon(icon, color: isSelected ? _P.skyBlue : _P.blue, size: 21),
+                ),
+                if (isSelected)
+                  Container(
+                    width: 20, height: 20,
+                    decoration: const BoxDecoration(color: Colors.white, shape: BoxShape.circle),
+                    child: const Icon(Icons.check_rounded, color: _P.deepNavy, size: 14),
+                  ),
+              ],
             ),
             const SizedBox(height: 14),
             Text(title, style: TextStyle(
               color: isSelected ? Colors.white : _P.deepNavy,
-              fontSize: 16, fontWeight: FontWeight.w800,
+              fontSize: 16, fontWeight: FontWeight.w800, letterSpacing: -0.2,
             )),
-            const SizedBox(height: 4),
+            const SizedBox(height: 3),
             Text(subtitle, style: TextStyle(
               color: isSelected ? Colors.white70 : _P.inkSoft,
               fontSize: 12, fontWeight: FontWeight.w500,
@@ -343,49 +517,53 @@ class _RoutePageState extends State<RoutePage> with SingleTickerProviderStateMix
   Widget _buildDateSection() {
     if (_isDayTour) {
       return _dateChip(
-        label: 'Tour Date',
+        key: const ValueKey('day'),
+        label: 'Tour date',
         date: _selectedDate,
         onTap: () => _pickDate(),
       );
     }
     return Row(
+      key: const ValueKey('range'),
       children: [
-        Expanded(child: _dateChip(label: 'Start Date', date: _selectedDate, onTap: () => _pickDate())),
-        const SizedBox(width: 14),
-        Expanded(child: _dateChip(label: 'End Date', date: _endDate, onTap: () => _pickDate(isEnd: true))),
+        Expanded(child: _dateChip(label: 'Start date', date: _selectedDate, onTap: () => _pickDate())),
+        const SizedBox(width: 12),
+        Expanded(child: _dateChip(label: 'End date', date: _endDate, onTap: () => _pickDate(isEnd: true))),
       ],
     );
   }
 
-  Widget _dateChip({required String label, required DateTime date, required VoidCallback onTap}) {
-    return GestureDetector(
+  Widget _dateChip({Key? key, required String label, required DateTime date, required VoidCallback onTap}) {
+    return _Tappable(
+      key: key,
       onTap: onTap,
       child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 16),
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 15),
         decoration: BoxDecoration(
           color: Colors.white,
           borderRadius: BorderRadius.circular(18),
-          boxShadow: [BoxShadow(color: _P.deepNavy.withValues(alpha: 0.05), blurRadius: 12, offset: const Offset(0, 4))],
+          border: Border.all(color: _P.iceBlue, width: 1.2),
+          boxShadow: [BoxShadow(color: _P.deepNavy.withValues(alpha: 0.04), blurRadius: 10, offset: const Offset(0, 4))],
         ),
         child: Row(
           children: [
             Container(
-              padding: const EdgeInsets.all(10),
+              padding: const EdgeInsets.all(9),
               decoration: BoxDecoration(color: _P.iceBlue, borderRadius: BorderRadius.circular(12)),
-              child: const Icon(Icons.calendar_today_rounded, color: _P.blue, size: 18),
+              child: const Icon(Icons.calendar_today_rounded, color: _P.blue, size: 17),
             ),
-            const SizedBox(width: 14),
+            const SizedBox(width: 12),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(label, style: const TextStyle(color: _P.inkSoft, fontSize: 11, fontWeight: FontWeight.w600)),
+                  Text(label, style: const TextStyle(color: _P.inkSoft, fontSize: 10.5, fontWeight: FontWeight.w700, letterSpacing: 0.2)),
                   const SizedBox(height: 2),
                   Text(_formatDate(date), style: const TextStyle(color: _P.deepNavy, fontSize: 14, fontWeight: FontWeight.w800)),
                 ],
               ),
             ),
-            const Icon(Icons.chevron_right_rounded, color: _P.inkSoft, size: 20),
+            const Icon(Icons.chevron_right_rounded, color: _P.inkSoft, size: 19),
           ],
         ),
       ),
@@ -393,121 +571,252 @@ class _RoutePageState extends State<RoutePage> with SingleTickerProviderStateMix
   }
 
   // ═══════════════════════════════════════════════════════════════
-  //  DESTINATION LIST
+  //  DAY ESCAPE SECTION (single shared picker)
   // ═══════════════════════════════════════════════════════════════
 
-  Widget _buildDestinationList() {
+  Widget _buildDayEscapeSection() {
+    return Column(
+      key: const ValueKey('dayEscape'),
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            const Text('Select destination',
+                style: TextStyle(color: _P.deepNavy, fontSize: 18, fontWeight: FontWeight.w800, letterSpacing: -0.3)),
+            _selectedCountBadge(_selectedDestinations.length),
+          ],
+        ),
+        const SizedBox(height: 14),
+        _searchField(
+          hint: 'Search tourist spots…',
+          onChanged: (v) => setState(() => _daySearchQuery = v),
+        ),
+        const SizedBox(height: 14),
+        _buildPictureList(
+          query: _daySearchQuery,
+          isSelected: (i) => _selectedDestinations.contains(i),
+          dimmedIndices: const {},
+          onToggle: (i) => setState(() {
+            if (_selectedDestinations.contains(i)) {
+              _selectedDestinations.remove(i);
+            } else {
+              _selectedDestinations.add(i);
+            }
+          }),
+        ),
+      ],
+    );
+  }
+
+  // ═══════════════════════════════════════════════════════════════
+  //  ITINERARY ESCAPE SECTION (per-day pickers)
+  // ═══════════════════════════════════════════════════════════════
+
+  Widget _buildItineraryEscapeSection() {
+    return Column(
+      key: const ValueKey('itineraryEscape'),
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            Container(
+              width: 6, height: 22,
+              decoration: BoxDecoration(
+                gradient: const LinearGradient(colors: [_P.skyBlue, _P.blue], begin: Alignment.topCenter, end: Alignment.bottomCenter),
+                borderRadius: BorderRadius.circular(4),
+              ),
+            ),
+            const SizedBox(width: 10),
+            Text('Itinerary Escape',
+                style: const TextStyle(color: _P.deepNavy, fontSize: 18, fontWeight: FontWeight.w800, letterSpacing: -0.3)),
+          ],
+        ),
+        const SizedBox(height: 4),
+        Padding(
+          padding: const EdgeInsets.only(left: 16),
+          child: Text('Multiple Destinations • $_tripDays Day Itinerary',
+              style: const TextStyle(color: _P.inkSoft, fontSize: 13, fontWeight: FontWeight.w500)),
+        ),
+        const SizedBox(height: 18),
+        ...List.generate(_tripDays, (dayIdx) => _buildDayBlock(dayIdx)),
+      ],
+    );
+  }
+
+  Widget _buildDayBlock(int dayIdx) {
+    final date = _selectedDate.add(Duration(days: dayIdx));
+    final picks = _dayDestinations[dayIdx];
+    final isExpanded = picks.isNotEmpty || dayIdx == 0;
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(22),
+        border: Border.all(color: _P.iceBlue, width: 1.2),
+        boxShadow: [BoxShadow(color: _P.deepNavy.withValues(alpha: 0.04), blurRadius: 12, offset: const Offset(0, 4))],
+      ),
+      child: Theme(
+        data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
+        child: ExpansionTile(
+          initiallyExpanded: isExpanded,
+          tilePadding: const EdgeInsets.fromLTRB(16, 6, 16, 6),
+          childrenPadding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+          shape: const RoundedRectangleBorder(side: BorderSide.none),
+          title: Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                decoration: BoxDecoration(
+                  gradient: const LinearGradient(colors: [_P.deepNavy, _P.navy]),
+                  borderRadius: BorderRadius.circular(50),
+                ),
+                child: Text('Day ${dayIdx + 1}',
+                    style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.w800)),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Text(_relativeDayLabel(date),
+                    style: const TextStyle(color: _P.inkSoft, fontSize: 13, fontWeight: FontWeight.w600),
+                    overflow: TextOverflow.ellipsis),
+              ),
+              _selectedCountBadge(picks.length),
+            ],
+          ),
+          children: [
+            _searchField(
+              hint: 'Search tourist spots for this day…',
+              onChanged: (v) => setState(() => _daySearchQueries[dayIdx] = v),
+            ),
+            const SizedBox(height: 12),
+            _buildPictureList(
+              query: _daySearchQueries[dayIdx],
+              isSelected: (i) => picks.contains(i),
+              dimmedIndices: {
+                for (var i = 0; i < _samalDestinations.length; i++)
+                  if (_isUsedOnEarlierDay(i, dayIdx)) i,
+              },
+              onToggle: (i) => setState(() {
+                if (picks.contains(i)) {
+                  picks.remove(i);
+                } else {
+                  picks.add(i);
+                }
+              }),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _selectedCountBadge(int count) {
+    return AnimatedSwitcher(
+      duration: const Duration(milliseconds: 250),
+      child: Container(
+        key: ValueKey(count),
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+        decoration: BoxDecoration(
+          color: count == 0 ? _P.iceBlue : _P.blue.withValues(alpha: 0.12),
+          borderRadius: BorderRadius.circular(50),
+        ),
+        child: Text('$count selected',
+            style: TextStyle(
+              color: count == 0 ? _P.inkSoft : _P.blue,
+              fontSize: 12,
+              fontWeight: FontWeight.w800,
+            )),
+      ),
+    );
+  }
+
+  // ═══════════════════════════════════════════════════════════════
+  //  SEARCH FIELD
+  // ═══════════════════════════════════════════════════════════════
+
+  Widget _searchField({required String hint, required ValueChanged<String> onChanged}) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16),
+      decoration: BoxDecoration(
+        color: _P.iceBlue.withValues(alpha: 0.55),
+        borderRadius: BorderRadius.circular(50),
+        border: Border.all(color: _P.iceBlue, width: 1.2),
+      ),
+      child: Row(
+        children: [
+          const Icon(Icons.search_rounded, color: _P.navy, size: 19),
+          const SizedBox(width: 10),
+          Expanded(
+            child: TextField(
+              onChanged: onChanged,
+              style: const TextStyle(color: _P.deepNavy, fontSize: 14, fontWeight: FontWeight.w500),
+              decoration: InputDecoration(
+                hintText: hint,
+                hintStyle: const TextStyle(color: _P.inkSoft, fontSize: 13.5, fontWeight: FontWeight.w500),
+                border: InputBorder.none,
+                contentPadding: const EdgeInsets.symmetric(vertical: 13),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ═══════════════════════════════════════════════════════════════
+  //  PICTURE-CARD DESTINATION LIST (shared by both modes)
+  // ═══════════════════════════════════════════════════════════════
+
+  Widget _buildPictureList({
+    required String query,
+    required bool Function(int) isSelected,
+    required Set<int> dimmedIndices,
+    required void Function(int) onToggle,
+  }) {
+    final q = query.trim().toLowerCase();
+    final indices = List.generate(_samalDestinations.length, (i) => i).where((i) {
+      if (q.isEmpty) return true;
+      final d = _samalDestinations[i];
+      return d.name.toLowerCase().contains(q) ||
+          d.location.toLowerCase().contains(q) ||
+          d.category.toLowerCase().contains(q);
+    }).toList();
+
+    if (indices.isEmpty) {
+      return Padding(
+        padding: const EdgeInsets.symmetric(vertical: 28),
+        child: Center(
+          child: Text('No spots match "$query"',
+              style: const TextStyle(color: _P.inkSoft, fontSize: 13, fontWeight: FontWeight.w500)),
+        ),
+      );
+    }
+
     return ListView.separated(
       shrinkWrap: true,
       physics: const NeverScrollableScrollPhysics(),
-      itemCount: _samalDestinations.length,
+      itemCount: indices.length,
       separatorBuilder: (_, __) => const SizedBox(height: 10),
-      itemBuilder: (_, i) {
+      itemBuilder: (_, listIdx) {
+        final i = indices[listIdx];
         final dest = _samalDestinations[i];
-        final selected = _selectedDestinations.contains(i);
+        final selected = isSelected(i);
+        final dimmed = dimmedIndices.contains(i) && !selected;
         final gradient = _catGradient(dest.category);
 
-        return GestureDetector(
-          onTap: () {
-            setState(() {
-              if (selected) {
-                _selectedDestinations.remove(i);
-              } else {
-                _selectedDestinations.add(i);
-              }
-              // Clear results when selection changes
-              _dayResult = null;
-              _itineraryResult = null;
-            });
-          },
-          child: AnimatedContainer(
-            duration: const Duration(milliseconds: 250),
-            padding: const EdgeInsets.all(14),
-            decoration: BoxDecoration(
-              color: selected ? _P.deepNavy : Colors.white,
-              borderRadius: BorderRadius.circular(18),
-              border: Border.all(
-                color: selected ? _P.blue : Colors.transparent,
-                width: 2,
-              ),
-              boxShadow: [
-                BoxShadow(
-                  color: selected ? _P.navy.withValues(alpha: 0.2) : _P.deepNavy.withValues(alpha: 0.04),
-                  blurRadius: 12,
-                  offset: const Offset(0, 4),
-                ),
-              ],
-            ),
-            child: Row(
-              children: [
-                // Gradient icon
-                Container(
-                  width: 46, height: 46,
-                  decoration: BoxDecoration(
-                    gradient: LinearGradient(colors: gradient),
-                    borderRadius: BorderRadius.circular(14),
-                  ),
-                  child: Icon(_catIcon(dest.category), color: Colors.white, size: 20),
-                ),
-                const SizedBox(width: 14),
-                // Info
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(dest.name, style: TextStyle(
-                        color: selected ? Colors.white : _P.deepNavy,
-                        fontSize: 15, fontWeight: FontWeight.w800,
-                      )),
-                      const SizedBox(height: 3),
-                      Row(
-                        children: [
-                          Icon(Icons.location_on_rounded, color: selected ? Colors.white54 : _P.inkSoft, size: 12),
-                          const SizedBox(width: 3),
-                          Expanded(child: Text(dest.location, style: TextStyle(
-                            color: selected ? Colors.white54 : _P.inkSoft,
-                            fontSize: 12, fontWeight: FontWeight.w500,
-                          ), overflow: TextOverflow.ellipsis)),
-                        ],
-                      ),
-                    ],
-                  ),
-                ),
-                // Duration chip
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-                  decoration: BoxDecoration(
-                    color: selected ? Colors.white.withValues(alpha: 0.12) : _P.iceBlue,
-                    borderRadius: BorderRadius.circular(50),
-                  ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Icon(Icons.schedule_rounded, color: selected ? _P.skyBlue : _P.blue, size: 12),
-                      const SizedBox(width: 4),
-                      Text('${dest.visitHours}h', style: TextStyle(
-                        color: selected ? _P.skyBlue : _P.navy,
-                        fontSize: 12, fontWeight: FontWeight.w700,
-                      )),
-                    ],
-                  ),
-                ),
-                const SizedBox(width: 10),
-                // Checkbox
-                AnimatedContainer(
-                  duration: const Duration(milliseconds: 200),
-                  width: 26, height: 26,
-                  decoration: BoxDecoration(
-                    color: selected ? _P.blue : Colors.transparent,
-                    borderRadius: BorderRadius.circular(8),
-                    border: Border.all(color: selected ? _P.blue : _P.inkSoft.withValues(alpha: 0.3), width: 2),
-                  ),
-                  child: selected
-                      ? const Icon(Icons.check_rounded, color: Colors.white, size: 16)
-                      : null,
-                ),
-              ],
-            ),
+        return AnimatedOpacity(
+          duration: const Duration(milliseconds: 250),
+          opacity: dimmed ? 0.45 : 1.0,
+          child: _DestinationPictureCard(
+            name: dest.name,
+            location: dest.location,
+            visitHours: dest.visitHours,
+            icon: _catIcon(dest.category),
+            gradient: gradient,
+            isSelected: selected,
+            onTap: () => _openDetailSheet(i, isSelected: selected, onToggle: () => onToggle(i)),
+            onQuickToggle: () => onToggle(i),
           ),
         );
       },
@@ -519,29 +828,39 @@ class _RoutePageState extends State<RoutePage> with SingleTickerProviderStateMix
   // ═══════════════════════════════════════════════════════════════
 
   Widget _buildOptimizeButton() {
-    final hasSelection = _selectedDestinations.isNotEmpty;
-    return GestureDetector(
+    final hasSelection = _isDayTour
+        ? _selectedDestinations.isNotEmpty
+        : _dayDestinations.any((s) => s.isNotEmpty);
+
+    return _Tappable(
       onTap: hasSelection && !_isOptimizing ? _optimize : null,
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 300),
-        width: double.infinity,
-        padding: const EdgeInsets.symmetric(vertical: 18),
-        decoration: BoxDecoration(
-          gradient: hasSelection
-              ? const LinearGradient(colors: [_P.blue, _P.deepNavy])
-              : null,
-          color: hasSelection ? null : _P.iceBlue,
-          borderRadius: BorderRadius.circular(50),
-          boxShadow: hasSelection
-              ? [BoxShadow(color: _P.blue.withValues(alpha: 0.35), blurRadius: 20, offset: const Offset(0, 8))]
-              : null,
-        ),
+      child: AnimatedBuilder(
+        animation: _pulseController,
+        builder: (context, child) {
+          final pulse = hasSelection && !_isOptimizing ? _pulseController.value : 0.0;
+          return AnimatedContainer(
+            duration: const Duration(milliseconds: 300),
+            width: double.infinity,
+            padding: const EdgeInsets.symmetric(vertical: 18),
+            decoration: BoxDecoration(
+              gradient: hasSelection
+                  ? const LinearGradient(colors: [_P.blue, _P.deepNavy])
+                  : null,
+              color: hasSelection ? null : _P.iceBlue,
+              borderRadius: BorderRadius.circular(50),
+              boxShadow: hasSelection
+                  ? [BoxShadow(color: _P.blue.withValues(alpha: 0.28 + (pulse * 0.14)), blurRadius: 18 + (pulse * 8), offset: const Offset(0, 8))]
+                  : null,
+            ),
+            child: child,
+          );
+        },
         child: Row(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             if (_isOptimizing)
               const SizedBox(
-                width: 20, height: 20,
+                width: 19, height: 19,
                 child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2.5),
               )
             else
@@ -549,10 +868,10 @@ class _RoutePageState extends State<RoutePage> with SingleTickerProviderStateMix
                   color: hasSelection ? Colors.white : _P.inkSoft, size: 20),
             const SizedBox(width: 10),
             Text(
-              _isOptimizing ? 'Running MOGA Optimization...' : 'Optimize Route',
+              _isOptimizing ? 'Running MOGA optimization…' : 'Optimize route',
               style: TextStyle(
                 color: hasSelection ? Colors.white : _P.inkSoft,
-                fontSize: 16, fontWeight: FontWeight.w700,
+                fontSize: 16, fontWeight: FontWeight.w700, letterSpacing: -0.1,
               ),
             ),
           ],
@@ -560,270 +879,465 @@ class _RoutePageState extends State<RoutePage> with SingleTickerProviderStateMix
       ),
     );
   }
+}
 
-  // ═══════════════════════════════════════════════════════════════
-  //  DAY TOUR RESULTS
-  // ═══════════════════════════════════════════════════════════════
+// ═══════════════════════════════════════════════════════════════════
+//  DESTINATION PICTURE CARD — image-1 layout, image-2/3 banner styling
+// ═══════════════════════════════════════════════════════════════════
 
-  Widget _buildDayResults() {
-    final result = _dayResult!;
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        const Text('Optimized Route', style: TextStyle(color: _P.deepNavy, fontSize: 20, fontWeight: FontWeight.w800, letterSpacing: -0.3)),
-        const SizedBox(height: 6),
-        Text('MOGA found the best order for your ${result.stopOrder.length} destinations.',
-            style: const TextStyle(color: _P.inkSoft, fontSize: 13, fontWeight: FontWeight.w500)),
-        const SizedBox(height: 16),
+class _DestinationPictureCard extends StatelessWidget {
+  final String name;
+  final String location;
+  final double visitHours;
+  final IconData icon;
+  final List<Color> gradient;
+  final bool isSelected;
+  final VoidCallback onTap;
+  final VoidCallback onQuickToggle;
 
-        // Summary chips
-        _buildSummaryRow(result.totalDistanceKm, result.totalTimeHours, result.stopOrder.length),
-        const SizedBox(height: 20),
+  const _DestinationPictureCard({
+    required this.name,
+    required this.location,
+    required this.visitHours,
+    required this.icon,
+    required this.gradient,
+    required this.isSelected,
+    required this.onTap,
+    required this.onQuickToggle,
+  });
 
-        // Route timeline
-        ...List.generate(result.stopOrder.length, (i) {
-          final destIdx = result.stopOrder[i];
-          final dest = _samalDestinations[destIdx];
-          final isLast = i == result.stopOrder.length - 1;
-
-          return Column(
-            children: [
-              _buildTimelineStop(i + 1, dest, isLast),
-              if (!isLast && i < result.legTravelMins.length)
-                _buildTravelLeg(result.legDistances[i], result.legTravelMins[i]),
-            ],
-          );
-        }),
-      ],
-    );
-  }
-
-  // ═══════════════════════════════════════════════════════════════
-  //  ITINERARY RESULTS
-  // ═══════════════════════════════════════════════════════════════
-
-  Widget _buildItineraryResults() {
-    final result = _itineraryResult!;
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        const Text('Your Itinerary', style: TextStyle(color: _P.deepNavy, fontSize: 20, fontWeight: FontWeight.w800, letterSpacing: -0.3)),
-        const SizedBox(height: 6),
-        Text('${result.days.length}-day plan optimized by MOGA.',
-            style: const TextStyle(color: _P.inkSoft, fontSize: 13, fontWeight: FontWeight.w500)),
-        const SizedBox(height: 16),
-
-        // Total summary
-        _buildSummaryRow(
-          result.totalDistanceKm,
-          result.days.fold(0.0, (sum, d) => sum + d.timeHours),
-          result.days.fold(0, (sum, d) => sum + d.stopOrder.length),
-        ),
-        const SizedBox(height: 24),
-
-        // Each day
-        ...result.days.map((day) => _buildDayCard(day)),
-      ],
-    );
-  }
-
-  Widget _buildDayCard(DayPlan day) {
-    final date = _selectedDate.add(Duration(days: day.dayNumber - 1));
-    return Container(
-      margin: const EdgeInsets.only(bottom: 20),
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(22),
-        boxShadow: [BoxShadow(color: _P.deepNavy.withValues(alpha: 0.06), blurRadius: 16, offset: const Offset(0, 6))],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // Day header
-          Row(
-            children: [
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-                decoration: BoxDecoration(
-                  gradient: const LinearGradient(colors: [_P.deepNavy, _P.navy]),
-                  borderRadius: BorderRadius.circular(50),
-                ),
-                child: Text('Day ${day.dayNumber}',
-                    style: const TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.w800)),
-              ),
-              const SizedBox(width: 12),
-              Text(_formatDate(date), style: const TextStyle(color: _P.inkSoft, fontSize: 13, fontWeight: FontWeight.w600)),
-              const Spacer(),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-                decoration: BoxDecoration(color: _P.iceBlue, borderRadius: BorderRadius.circular(50)),
-                child: Text('${day.distanceKm.toStringAsFixed(1)} km',
-                    style: const TextStyle(color: _P.navy, fontSize: 12, fontWeight: FontWeight.w700)),
-              ),
-            ],
-          ),
-          const SizedBox(height: 18),
-
-          // Stops
-          ...List.generate(day.stopOrder.length, (i) {
-            final dest = _samalDestinations[day.stopOrder[i]];
-            final isLast = i == day.stopOrder.length - 1;
-            return Column(
-              children: [
-                _buildTimelineStop(i + 1, dest, isLast),
-                if (!isLast && i < day.legTravelMins.length)
-                  _buildTravelLeg(day.legDistances[i], day.legTravelMins[i]),
-              ],
-            );
-          }),
-        ],
-      ),
-    );
-  }
-
-  // ═══════════════════════════════════════════════════════════════
-  //  SHARED RESULT WIDGETS
-  // ═══════════════════════════════════════════════════════════════
-
-  Widget _buildSummaryRow(double distKm, double timeHrs, int stops) {
-    return Row(
-      children: [
-        _summaryChip(Icons.straighten_rounded, '${distKm.toStringAsFixed(1)} km', 'Distance'),
-        const SizedBox(width: 10),
-        _summaryChip(Icons.schedule_rounded, '${timeHrs.toStringAsFixed(1)} hrs', 'Total Time'),
-        const SizedBox(width: 10),
-        _summaryChip(Icons.pin_drop_rounded, '$stops', 'Stops'),
-      ],
-    );
-  }
-
-  Widget _summaryChip(IconData icon, String value, String label) {
-    return Expanded(
-      child: Container(
-        padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 10),
+  @override
+  Widget build(BuildContext context) {
+    return _Tappable(
+      onTap: onTap,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 280),
+        curve: Curves.easeOutCubic,
         decoration: BoxDecoration(
-          color: _P.iceBlue,
-          borderRadius: BorderRadius.circular(16),
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(color: isSelected ? _P.blue : _P.iceBlue, width: isSelected ? 1.8 : 1.2),
+          boxShadow: [
+            BoxShadow(
+              color: isSelected ? _P.blue.withValues(alpha: 0.18) : _P.deepNavy.withValues(alpha: 0.04),
+              blurRadius: isSelected ? 16 : 8,
+              offset: const Offset(0, 4),
+            ),
+          ],
         ),
         child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Icon(icon, color: _P.blue, size: 20),
-            const SizedBox(height: 6),
-            Text(value, style: const TextStyle(color: _P.deepNavy, fontSize: 16, fontWeight: FontWeight.w800)),
-            const SizedBox(height: 2),
-            Text(label, style: const TextStyle(color: _P.inkSoft, fontSize: 11, fontWeight: FontWeight.w600)),
+            // Photo banner placeholder — swap for Image.network/asset later.
+            Stack(
+              children: [
+                ClipRRect(
+                  borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
+                  child: Container(
+                    height: 110,
+                    width: double.infinity,
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(colors: gradient, begin: Alignment.topLeft, end: Alignment.bottomRight),
+                    ),
+                    child: Stack(
+                      children: [
+                        Positioned(
+                          right: -16,
+                          bottom: -16,
+                          child: Icon(icon, size: 92, color: Colors.white.withValues(alpha: 0.18)),
+                        ),
+                        Center(child: Icon(icon, size: 34, color: Colors.white.withValues(alpha: 0.9))),
+                      ],
+                    ),
+                  ),
+                ),
+                Positioned(
+                  top: 10,
+                  right: 10,
+                  child: GestureDetector(
+                    onTap: onQuickToggle,
+                    child: AnimatedContainer(
+                      duration: const Duration(milliseconds: 200),
+                      width: 30, height: 30,
+                      decoration: BoxDecoration(
+                        color: isSelected ? _P.blue : Colors.white.withValues(alpha: 0.92),
+                        borderRadius: BorderRadius.circular(9),
+                        boxShadow: [BoxShadow(color: _P.deepNavy.withValues(alpha: 0.15), blurRadius: 6, offset: const Offset(0, 2))],
+                      ),
+                      child: Icon(
+                        isSelected ? Icons.check_rounded : Icons.add_rounded,
+                        color: isSelected ? Colors.white : _P.navy,
+                        size: 18,
+                      ),
+                    ),
+                  ),
+                ),
+                Positioned(
+                  bottom: 10,
+                  left: 12,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                    decoration: BoxDecoration(
+                      color: Colors.white.withValues(alpha: 0.92),
+                      borderRadius: BorderRadius.circular(50),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Icon(Icons.schedule_rounded, color: _P.blue, size: 12),
+                        const SizedBox(width: 4),
+                        Text('${visitHours}h',
+                            style: const TextStyle(color: _P.navy, fontSize: 11.5, fontWeight: FontWeight.w800)),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            // Info row
+            Padding(
+              padding: const EdgeInsets.fromLTRB(14, 10, 14, 12),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(name, style: const TextStyle(color: _P.deepNavy, fontSize: 15, fontWeight: FontWeight.w800, letterSpacing: -0.1)),
+                        const SizedBox(height: 3),
+                        Row(
+                          children: [
+                            const Icon(Icons.location_on_rounded, color: _P.inkSoft, size: 12),
+                            const SizedBox(width: 3),
+                            Expanded(child: Text(location,
+                                style: const TextStyle(color: _P.inkSoft, fontSize: 12, fontWeight: FontWeight.w500),
+                                overflow: TextOverflow.ellipsis)),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Icon(Icons.chevron_right_rounded, color: _P.inkSoft.withValues(alpha: 0.5), size: 20),
+                ],
+              ),
+            ),
           ],
         ),
       ),
     );
   }
+}
 
-  Widget _buildTimelineStop(int number, Destination dest, bool isLast) {
-    final gradient = _catGradient(dest.category);
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        // Timeline dot + line
-        SizedBox(
-          width: 36,
-          child: Column(
+// ═══════════════════════════════════════════════════════════════════
+//  DESTINATION DETAIL SHEET — image-3 layout, Select instead of Book Now
+// ═══════════════════════════════════════════════════════════════════
+
+class _DestinationDetailSheet extends StatefulWidget {
+  final Destination destination;
+  final double rating;
+  final String blurb;
+  final List<Color> gradient;
+  final IconData icon;
+  final bool isSelected;
+  final VoidCallback onToggleSelect;
+
+  const _DestinationDetailSheet({
+    required this.destination,
+    required this.rating,
+    required this.blurb,
+    required this.gradient,
+    required this.icon,
+    required this.isSelected,
+    required this.onToggleSelect,
+  });
+
+  @override
+  State<_DestinationDetailSheet> createState() => _DestinationDetailSheetState();
+}
+
+class _DestinationDetailSheetState extends State<_DestinationDetailSheet> {
+  int _tabIndex = 0;
+  static const _tabs = ['Overview', 'Map', 'Tips'];
+
+  @override
+  Widget build(BuildContext context) {
+    final dest = widget.destination;
+    return DraggableScrollableSheet(
+      initialChildSize: 0.78,
+      minChildSize: 0.5,
+      maxChildSize: 0.95,
+      expand: false,
+      builder: (context, scrollController) {
+        return Container(
+          decoration: const BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+          ),
+          child: ListView(
+            controller: scrollController,
+            padding: EdgeInsets.zero,
             children: [
-              Container(
-                width: 36, height: 36,
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(colors: gradient),
-                  shape: BoxShape.circle,
-                  boxShadow: [BoxShadow(color: gradient[1].withValues(alpha: 0.3), blurRadius: 8, offset: const Offset(0, 3))],
+              const SizedBox(height: 10),
+              Center(
+                child: Container(
+                  width: 40, height: 4,
+                  decoration: BoxDecoration(color: _P.iceBlue, borderRadius: BorderRadius.circular(50)),
                 ),
-                child: Center(
-                  child: Text('$number',
-                      style: const TextStyle(color: Colors.white, fontSize: 14, fontWeight: FontWeight.w800)),
+              ),
+              const SizedBox(height: 16),
+
+              // Banner
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 20),
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(20),
+                  child: Container(
+                    height: 160,
+                    width: double.infinity,
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(colors: widget.gradient, begin: Alignment.topLeft, end: Alignment.bottomRight),
+                    ),
+                    child: Stack(
+                      children: [
+                        Positioned(
+                          right: -20,
+                          bottom: -20,
+                          child: Icon(widget.icon, size: 130, color: Colors.white.withValues(alpha: 0.16)),
+                        ),
+                        Center(child: Icon(widget.icon, size: 48, color: Colors.white.withValues(alpha: 0.92))),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 18),
+
+              // Title row + price-style duration chip (kept consistent with the rest of the app)
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 22),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(dest.name,
+                              style: const TextStyle(color: _P.deepNavy, fontSize: 21, fontWeight: FontWeight.w800, letterSpacing: -0.4)),
+                          const SizedBox(height: 4),
+                          Row(
+                            children: [
+                              const Icon(Icons.location_on_rounded, color: _P.inkSoft, size: 14),
+                              const SizedBox(width: 4),
+                              Text(dest.location, style: const TextStyle(color: _P.inkSoft, fontSize: 13.5, fontWeight: FontWeight.w500)),
+                            ],
+                          ),
+                        ],
+                      ),
+                    ),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+                      decoration: BoxDecoration(color: _P.iceBlue, borderRadius: BorderRadius.circular(50)),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const Icon(Icons.schedule_rounded, color: _P.blue, size: 14),
+                          const SizedBox(width: 5),
+                          Text('${dest.visitHours}h',
+                              style: const TextStyle(color: _P.navy, fontSize: 13, fontWeight: FontWeight.w800)),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 14),
+
+              // Rating row
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 22),
+                child: Row(
+                  children: [
+                    Row(
+                      children: List.generate(5, (i) {
+                        final filled = i < widget.rating.floor();
+                        final half = !filled && i < widget.rating;
+                        return Icon(
+                          half ? Icons.star_half_rounded : (filled ? Icons.star_rounded : Icons.star_border_rounded),
+                          color: const Color(0xFFFFA726),
+                          size: 17,
+                        );
+                      }),
+                    ),
+                    const SizedBox(width: 8),
+                    Text(widget.rating.toString(),
+                        style: const TextStyle(color: _P.deepNavy, fontSize: 13.5, fontWeight: FontWeight.w800)),
+                    const SizedBox(width: 6),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
+                      decoration: BoxDecoration(color: _P.iceBlue, borderRadius: BorderRadius.circular(50)),
+                      child: Text(dest.category,
+                          style: const TextStyle(color: _P.navy, fontSize: 11.5, fontWeight: FontWeight.w700)),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 18),
+
+              // Tabs
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 22),
+                child: Row(
+                  children: List.generate(_tabs.length, (i) {
+                    final selected = _tabIndex == i;
+                    return Padding(
+                      padding: const EdgeInsets.only(right: 22),
+                      child: GestureDetector(
+                        onTap: () => setState(() => _tabIndex = i),
+                        child: Column(
+                          children: [
+                            Text(_tabs[i],
+                                style: TextStyle(
+                                  color: selected ? _P.deepNavy : _P.inkSoft,
+                                  fontSize: 14,
+                                  fontWeight: selected ? FontWeight.w800 : FontWeight.w500,
+                                )),
+                            const SizedBox(height: 6),
+                            Container(
+                              height: 3,
+                              width: 28,
+                              decoration: BoxDecoration(
+                                color: selected ? _P.blue : Colors.transparent,
+                                borderRadius: BorderRadius.circular(50),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    );
+                  }),
+                ),
+              ),
+              Divider(height: 1, color: _P.iceBlue),
+              const SizedBox(height: 16),
+
+              // Tab content
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 22),
+                child: _buildTabContent(dest),
+              ),
+              const SizedBox(height: 24),
+
+              // Select button (replaces "Book Now!")
+              Padding(
+                padding: const EdgeInsets.fromLTRB(22, 0, 22, 28),
+                child: _Tappable(
+                  onTap: widget.onToggleSelect,
+                  child: Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.symmetric(vertical: 17),
+                    decoration: BoxDecoration(
+                      gradient: widget.isSelected
+                          ? null
+                          : const LinearGradient(colors: [_P.blue, _P.deepNavy]),
+                      color: widget.isSelected ? _P.iceBlue : null,
+                      borderRadius: BorderRadius.circular(50),
+                      border: widget.isSelected ? Border.all(color: _P.blue, width: 1.6) : null,
+                    ),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(
+                          widget.isSelected ? Icons.check_circle_rounded : Icons.add_circle_outline_rounded,
+                          color: widget.isSelected ? _P.blue : Colors.white,
+                          size: 20,
+                        ),
+                        const SizedBox(width: 9),
+                        Text(
+                          widget.isSelected ? 'Selected — tap to remove' : 'Select this spot',
+                          style: TextStyle(
+                            color: widget.isSelected ? _P.blue : Colors.white,
+                            fontSize: 15.5,
+                            fontWeight: FontWeight.w700,
+                            letterSpacing: -0.1,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
                 ),
               ),
             ],
           ),
-        ),
-        const SizedBox(width: 14),
-        // Stop info
-        Expanded(
-          child: Container(
-            padding: const EdgeInsets.all(14),
-            decoration: BoxDecoration(
-              color: _P.iceBlue.withValues(alpha: 0.5),
-              borderRadius: BorderRadius.circular(16),
-            ),
-            child: Row(
-              children: [
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(dest.name, style: const TextStyle(color: _P.deepNavy, fontSize: 14, fontWeight: FontWeight.w800)),
-                      const SizedBox(height: 3),
-                      Row(children: [
-                        const Icon(Icons.location_on_rounded, color: _P.inkSoft, size: 12),
-                        const SizedBox(width: 3),
-                        Expanded(child: Text(dest.location,
-                            style: const TextStyle(color: _P.inkSoft, fontSize: 12), overflow: TextOverflow.ellipsis)),
-                      ]),
-                    ],
-                  ),
-                ),
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-                  decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(50)),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Icon(_catIcon(dest.category), color: _P.blue, size: 12),
-                      const SizedBox(width: 4),
-                      Text('${dest.visitHours}h',
-                          style: const TextStyle(color: _P.navy, fontSize: 12, fontWeight: FontWeight.w700)),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
-      ],
+        );
+      },
     );
   }
 
-  Widget _buildTravelLeg(double distKm, double travelMins) {
-    return Padding(
-      padding: const EdgeInsets.only(left: 16),
-      child: Row(
-        children: [
-          // Dotted line
-          Column(
-            children: List.generate(3, (_) => Container(
-              width: 3, height: 6,
-              margin: const EdgeInsets.symmetric(vertical: 2),
-              decoration: BoxDecoration(color: _P.skyBlue.withValues(alpha: 0.5), borderRadius: BorderRadius.circular(2)),
-            )),
+  Widget _buildTabContent(Destination dest) {
+    switch (_tabIndex) {
+      case 1: // Map
+        return Container(
+          height: 140,
+          decoration: BoxDecoration(color: _P.iceBlue.withValues(alpha: 0.5), borderRadius: BorderRadius.circular(16)),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              const Icon(Icons.map_rounded, color: _P.blue, size: 28),
+              const SizedBox(height: 8),
+              Text('${dest.lat.toStringAsFixed(4)}, ${dest.lng.toStringAsFixed(4)}',
+                  style: const TextStyle(color: _P.inkSoft, fontSize: 12.5, fontWeight: FontWeight.w600)),
+              const SizedBox(height: 4),
+              const Text('Full map preview available after optimizing',
+                  style: TextStyle(color: _P.inkSoft, fontSize: 11.5, fontWeight: FontWeight.w500)),
+            ],
           ),
-          const SizedBox(width: 18),
-          Container(
-            margin: const EdgeInsets.symmetric(vertical: 6),
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(50),
-              boxShadow: [BoxShadow(color: _P.deepNavy.withValues(alpha: 0.04), blurRadius: 8)],
-            ),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                const Icon(Icons.directions_car_rounded, color: _P.skyBlue, size: 14),
-                const SizedBox(width: 6),
-                Text('${distKm.toStringAsFixed(1)} km · ${travelMins.toStringAsFixed(0)} min',
-                    style: const TextStyle(color: _P.inkSoft, fontSize: 11, fontWeight: FontWeight.w600)),
-              ],
-            ),
-          ),
-        ],
+        );
+      case 2: // Tips
+        return const Text(
+          'Bring water and sun protection. Most Samal Island spots are best visited in the morning before the midday heat and weekend crowds.',
+          style: TextStyle(color: _P.inkSoft, fontSize: 13.5, fontWeight: FontWeight.w500, height: 1.5),
+        );
+      default: // Overview
+        return Text(
+          widget.blurb,
+          style: const TextStyle(color: _P.inkSoft, fontSize: 13.5, fontWeight: FontWeight.w500, height: 1.5),
+        );
+    }
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════
+//  _Tappable — shared tactile press feedback (subtle scale, no bounce)
+// ═══════════════════════════════════════════════════════════════════
+
+class _Tappable extends StatefulWidget {
+  final Widget child;
+  final VoidCallback? onTap;
+
+  const _Tappable({super.key, required this.child, required this.onTap});
+
+  @override
+  State<_Tappable> createState() => _TappableState();
+}
+
+class _TappableState extends State<_Tappable> {
+  bool _pressed = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final disabled = widget.onTap == null;
+    return GestureDetector(
+      onTapDown: disabled ? null : (_) => setState(() => _pressed = true),
+      onTapUp: disabled ? null : (_) => setState(() => _pressed = false),
+      onTapCancel: disabled ? null : () => setState(() => _pressed = false),
+      onTap: widget.onTap,
+      child: AnimatedScale(
+        scale: _pressed ? 0.97 : 1.0,
+        duration: const Duration(milliseconds: 120),
+        curve: Curves.easeOut,
+        child: widget.child,
       ),
     );
   }

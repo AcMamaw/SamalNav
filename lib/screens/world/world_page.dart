@@ -1,7 +1,10 @@
 import 'package:flutter/material.dart';
+import 'dart:ui';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
+import 'package:geolocator/geolocator.dart';
 import '../../theme/palette.dart';
+import '../../state/app_state.dart';
 
 typedef _P = AppPalette;
 
@@ -80,6 +83,70 @@ class _WorldPageState extends State<WorldPage> with TickerProviderStateMixin {
   final MapController _mapController = MapController();
   String _selectedCategory = 'All';
   final TextEditingController _searchController = TextEditingController();
+  final PageController _cardController = PageController(viewportFraction: 0.62);
+
+  LatLng? _currentLocation;
+  List<LatLng> _routePolyline = [];
+
+  late AnimationController _markerDropController;
+  double _cardPage = 0;
+  int? _focusedPlaceIndex;
+
+  @override
+  void initState() {
+    super.initState();
+    _initLocation();
+    _checkActiveRoute();
+
+    _markerDropController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 900),
+    )..forward();
+
+    _cardController.addListener(() {
+      setState(() => _cardPage = _cardController.page ?? 0);
+    });
+  }
+
+  Future<void> _initLocation() async {
+    bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
+    if (!serviceEnabled) return;
+
+    LocationPermission permission = await Geolocator.checkPermission();
+    if (permission == LocationPermission.denied) {
+      permission = await Geolocator.requestPermission();
+      if (permission == LocationPermission.denied) return;
+    }
+    if (permission == LocationPermission.deniedForever) return;
+
+    Position position = await Geolocator.getCurrentPosition();
+    if (mounted) {
+      setState(() {
+        _currentLocation = LatLng(position.latitude, position.longitude);
+      });
+    }
+
+    // Continuously listen to location updates
+    Geolocator.getPositionStream().listen((Position position) {
+      if (mounted) {
+        setState(() {
+          _currentLocation = LatLng(position.latitude, position.longitude);
+        });
+      }
+    });
+  }
+
+  void _checkActiveRoute() {
+    if (AppState.hasActiveRoute && AppState.activeRoutePolyline != null) {
+      _routePolyline = AppState.activeRoutePolyline!;
+
+      if (_routePolyline.isNotEmpty) {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          _flyTo(_routePolyline.first, zoom: 12.0);
+        });
+      }
+    }
+  }
 
   List<MapPlace> get _filteredPlaces {
     if (_selectedCategory == 'All') return _allPlaces;
@@ -120,10 +187,22 @@ class _WorldPageState extends State<WorldPage> with TickerProviderStateMixin {
     controller.forward();
   }
 
+  void _onSuggestionTap(int index, MapPlace place) {
+    _cardController.animateToPage(
+      index,
+      duration: const Duration(milliseconds: 400),
+      curve: Curves.easeOutCubic,
+    );
+    setState(() => _focusedPlaceIndex = index);
+    _flyTo(place.coords);
+  }
+
   @override
   void dispose() {
     _searchController.dispose();
     _mapController.dispose();
+    _cardController.dispose();
+    _markerDropController.dispose();
     super.dispose();
   }
 
@@ -152,142 +231,164 @@ class _WorldPageState extends State<WorldPage> with TickerProviderStateMixin {
                 maxZoom: 18,
               ),
 
+              // ── Route Polyline ─────────────────────────────────
+              if (_routePolyline.isNotEmpty)
+                PolylineLayer(
+                  polylines: [
+                    Polyline(
+                      points: _routePolyline,
+                      color: _P.blue,
+                      strokeWidth: 4.0,
+                      borderColor: Colors.white,
+                      borderStrokeWidth: 1.5,
+                    ),
+                  ],
+                ),
+
               // ── Place Markers ──────────────────────────────────
               MarkerLayer(
-                markers: _filteredPlaces.map((place) {
-                  return Marker(
-                    point: place.coords,
-                    width: 40,
-                    height: 40,
-                    child: GestureDetector(
-                      onTap: () => _showMarkerDetail(place),
-                      child: Container(
-                        decoration: BoxDecoration(
-                          gradient: LinearGradient(colors: place.gradient),
-                          shape: BoxShape.circle,
-                          boxShadow: [
-                            BoxShadow(
-                              color: place.gradient[1].withValues(alpha: 0.4),
-                              blurRadius: 8,
-                              offset: const Offset(0, 3),
+                markers: [
+                  ..._filteredPlaces.asMap().entries.map((entry) {
+                    final i = entry.key;
+                    final place = entry.value;
+                    final isFocused = _focusedPlaceIndex != null &&
+                        _filteredPlaces[_focusedPlaceIndex!] == place;
+                    return Marker(
+                      point: place.coords,
+                      width: isFocused ? 50 : 40,
+                      height: isFocused ? 50 : 40,
+                      child: _DroppingMarker(
+                        delay: Duration(milliseconds: 40 * i),
+                        controller: _markerDropController,
+                        child: GestureDetector(
+                          onTap: () => _showMarkerDetail(place),
+                          child: AnimatedContainer(
+                            duration: const Duration(milliseconds: 280),
+                            curve: Curves.easeOutCubic,
+                            decoration: BoxDecoration(
+                              gradient: LinearGradient(colors: place.gradient, begin: Alignment.topLeft, end: Alignment.bottomRight),
+                              shape: BoxShape.circle,
+                              border: Border.all(color: Colors.white, width: isFocused ? 3 : 2),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: place.gradient[1].withValues(alpha: isFocused ? 0.55 : 0.4),
+                                  blurRadius: isFocused ? 14 : 8,
+                                  offset: const Offset(0, 3),
+                                ),
+                              ],
                             ),
-                          ],
+                            child: Icon(Icons.location_on_rounded, color: Colors.white, size: isFocused ? 24 : 20),
+                          ),
                         ),
-                        child: const Icon(Icons.location_on_rounded, color: Colors.white, size: 20),
                       ),
+                    );
+                  }),
+                  if (_currentLocation != null)
+                    Marker(
+                      point: _currentLocation!,
+                      width: 50,
+                      height: 50,
+                      child: const _CurrentLocationMarker(),
                     ),
-                  );
-                }).toList(),
+                ],
               ),
             ],
           ),
 
-          // ── Top Overlay: Search + Categories ────────────────────
+          // ── Top Overlay: Glass control deck ─────────────────────
           SafeArea(
             child: Column(
               children: [
-                // Search Bar
                 Padding(
-                  padding: const EdgeInsets.fromLTRB(20, 12, 20, 0),
+                  padding: const EdgeInsets.fromLTRB(18, 12, 18, 0),
                   child: Center(
                     child: ConstrainedBox(
                       constraints: const BoxConstraints(maxWidth: 600),
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 16),
-                        decoration: BoxDecoration(
-                          color: Colors.white.withValues(alpha: 0.95),
-                          borderRadius: BorderRadius.circular(50),
-                          boxShadow: [
-                            BoxShadow(
-                              color: _P.deepNavy.withValues(alpha: 0.1),
-                              blurRadius: 20,
-                              offset: const Offset(0, 6),
-                            ),
-                          ],
-                        ),
-                        child: Row(
+                      child: _GlassPanel(
+                        borderRadius: 26,
+                        child: Column(
                           children: [
-                            const Icon(Icons.search_rounded, color: _P.navy, size: 22),
-                            const SizedBox(width: 12),
-                            Expanded(
-                              child: TextField(
-                                controller: _searchController,
-                                style: const TextStyle(color: _P.deepNavy, fontSize: 15, fontWeight: FontWeight.w500),
-                                decoration: const InputDecoration(
-                                  hintText: 'Search places in Samal...',
-                                  hintStyle: TextStyle(color: _P.inkSoft, fontSize: 14, fontWeight: FontWeight.w500),
-                                  border: InputBorder.none,
-                                  contentPadding: EdgeInsets.symmetric(vertical: 14),
-                                ),
-                              ),
-                            ),
-                            Container(
-                              padding: const EdgeInsets.all(8),
-                              decoration: BoxDecoration(
-                                color: _P.deepNavy,
-                                borderRadius: BorderRadius.circular(12),
-                              ),
-                              child: const Icon(Icons.tune_rounded, color: Colors.white, size: 18),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                  ),
-                ),
-
-                const SizedBox(height: 12),
-
-                // Category Chips
-                SizedBox(
-                  height: 44,
-                  child: Center(
-                    child: ConstrainedBox(
-                      constraints: const BoxConstraints(maxWidth: 600),
-                      child: ListView.separated(
-                        scrollDirection: Axis.horizontal,
-                        padding: const EdgeInsets.symmetric(horizontal: 20),
-                        itemCount: _categories.length,
-                        separatorBuilder: (_, __) => const SizedBox(width: 8),
-                        itemBuilder: (_, i) {
-                          final cat = _categories[i];
-                          final name = cat['name'] as String;
-                          final icon = cat['icon'] as IconData;
-                          final selected = _selectedCategory == name;
-                          return GestureDetector(
-                            onTap: () => setState(() => _selectedCategory = name),
-                            child: AnimatedContainer(
-                              duration: const Duration(milliseconds: 250),
-                              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-                              decoration: BoxDecoration(
-                                color: selected ? _P.deepNavy : Colors.white.withValues(alpha: 0.92),
-                                borderRadius: BorderRadius.circular(50),
-                                boxShadow: [
-                                  BoxShadow(
-                                    color: _P.deepNavy.withValues(alpha: selected ? 0.2 : 0.06),
-                                    blurRadius: 10,
-                                    offset: const Offset(0, 4),
-                                  ),
-                                ],
-                              ),
+                            // Search row
+                            Padding(
+                              padding: const EdgeInsets.fromLTRB(16, 14, 12, 12),
                               child: Row(
-                                mainAxisSize: MainAxisSize.min,
                                 children: [
-                                  Icon(icon, color: selected ? _P.skyBlue : _P.navy, size: 16),
-                                  const SizedBox(width: 6),
-                                  Text(
-                                    name,
-                                    style: TextStyle(
-                                      color: selected ? Colors.white : _P.deepNavy,
-                                      fontWeight: FontWeight.w700,
-                                      fontSize: 13,
+                                  const Icon(Icons.search_rounded, color: _P.navy, size: 21),
+                                  const SizedBox(width: 11),
+                                  Expanded(
+                                    child: TextField(
+                                      controller: _searchController,
+                                      style: const TextStyle(color: _P.deepNavy, fontSize: 15, fontWeight: FontWeight.w500),
+                                      decoration: const InputDecoration(
+                                        hintText: 'Search places in Samal…',
+                                        hintStyle: TextStyle(color: _P.inkSoft, fontSize: 14, fontWeight: FontWeight.w500),
+                                        border: InputBorder.none,
+                                        isCollapsed: true,
+                                      ),
                                     ),
                                   ),
+                                  const SizedBox(width: 8),
+                                  Container(
+                                    padding: const EdgeInsets.all(8),
+                                    decoration: BoxDecoration(
+                                      gradient: const LinearGradient(colors: [_P.blue, _P.deepNavy]),
+                                      borderRadius: BorderRadius.circular(12),
+                                    ),
+                                    child: const Icon(Icons.tune_rounded, color: Colors.white, size: 17),
+                                  ),
                                 ],
                               ),
                             ),
-                          );
-                        },
+                            Container(height: 1, color: _P.deepNavy.withValues(alpha: 0.06)),
+                            // Category chips, inside the same glass panel
+                            SizedBox(
+                              height: 50,
+                              child: ListView.separated(
+                                scrollDirection: Axis.horizontal,
+                                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 9),
+                                itemCount: _categories.length,
+                                separatorBuilder: (_, __) => const SizedBox(width: 8),
+                                itemBuilder: (_, i) {
+                                  final cat = _categories[i];
+                                  final name = cat['name'] as String;
+                                  final icon = cat['icon'] as IconData;
+                                  final selected = _selectedCategory == name;
+                                  return GestureDetector(
+                                    onTap: () => setState(() {
+                                      _selectedCategory = name;
+                                      _focusedPlaceIndex = null;
+                                    }),
+                                    child: AnimatedContainer(
+                                      duration: const Duration(milliseconds: 250),
+                                      curve: Curves.easeOutCubic,
+                                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                                      decoration: BoxDecoration(
+                                        gradient: selected ? const LinearGradient(colors: [_P.deepNavy, _P.navy]) : null,
+                                        color: selected ? null : _P.iceBlue.withValues(alpha: 0.7),
+                                        borderRadius: BorderRadius.circular(50),
+                                      ),
+                                      child: Row(
+                                        mainAxisSize: MainAxisSize.min,
+                                        children: [
+                                          Icon(icon, color: selected ? _P.skyBlue : _P.navy, size: 15),
+                                          const SizedBox(width: 6),
+                                          Text(
+                                            name,
+                                            style: TextStyle(
+                                              color: selected ? Colors.white : _P.deepNavy,
+                                              fontWeight: FontWeight.w700,
+                                              fontSize: 12.5,
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                  );
+                                },
+                              ),
+                            ),
+                          ],
+                        ),
                       ),
                     ),
                   ),
@@ -296,38 +397,66 @@ class _WorldPageState extends State<WorldPage> with TickerProviderStateMixin {
             ),
           ),
 
-          // ── Bottom Overlay: Suggestion Cards ────────────────────
+          // ── Bottom Overlay: Carousel suggestion cards ───────────
           Positioned(
-            bottom: 8,
+            bottom: 14,
             left: 0,
             right: 0,
             child: SizedBox(
-              height: 140,
+              height: 152,
               child: Center(
                 child: ConstrainedBox(
                   constraints: const BoxConstraints(maxWidth: 600),
                   child: _filteredPlaces.isEmpty
                       ? Center(
-                          child: Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
-                            decoration: BoxDecoration(
-                              color: Colors.white.withValues(alpha: 0.95),
-                              borderRadius: BorderRadius.circular(20),
+                          child: _GlassPanel(
+                            borderRadius: 20,
+                            child: const Padding(
+                              padding: EdgeInsets.symmetric(horizontal: 24, vertical: 14),
+                              child: Text('No places in this category yet',
+                                  style: TextStyle(color: _P.inkSoft, fontSize: 14, fontWeight: FontWeight.w600)),
                             ),
-                            child: const Text('No places in this category yet',
-                                style: TextStyle(color: _P.inkSoft, fontSize: 14, fontWeight: FontWeight.w600)),
                           ),
                         )
-                      : ListView.separated(
-                          scrollDirection: Axis.horizontal,
-                          clipBehavior: Clip.none,
-                          padding: const EdgeInsets.symmetric(horizontal: 20),
+                      : PageView.builder(
+                          controller: _cardController,
                           itemCount: _filteredPlaces.length,
-                          separatorBuilder: (_, __) => const SizedBox(width: 14),
-                          itemBuilder: (_, i) => _buildSuggestionCard(_filteredPlaces[i]),
+                          padEnds: true,
+                          onPageChanged: (i) => setState(() => _focusedPlaceIndex = i),
+                          itemBuilder: (_, i) {
+                            final delta = (_cardPage - i).abs().clamp(0.0, 1.0);
+                            final scale = 1.0 - (delta * 0.12);
+                            final opacity = 1.0 - (delta * 0.35);
+                            return Transform.scale(
+                              scale: scale,
+                              child: Opacity(
+                                opacity: opacity,
+                                child: Padding(
+                                  padding: const EdgeInsets.symmetric(horizontal: 7),
+                                  child: _buildSuggestionCard(_filteredPlaces[i], i),
+                                ),
+                              ),
+                            );
+                          },
                         ),
                 ),
               ),
+            ),
+          ),
+
+          // ── My Location FAB ─────────────────────────────────────
+          Positioned(
+            bottom: 175,
+            right: 18,
+            child: _GlassFab(
+              icon: Icons.my_location_rounded,
+              onTap: () {
+                if (_currentLocation != null) {
+                  _flyTo(_currentLocation!, zoom: 15.0);
+                } else {
+                  _flyTo(const LatLng(7.085, 125.730), zoom: 12.0);
+                }
+              },
             ),
           ),
         ],
@@ -339,11 +468,10 @@ class _WorldPageState extends State<WorldPage> with TickerProviderStateMixin {
   //  SUGGESTION CARD
   // ═══════════════════════════════════════════════════════════════════
 
-  Widget _buildSuggestionCard(MapPlace place) {
+  Widget _buildSuggestionCard(MapPlace place, int index) {
     return GestureDetector(
-      onTap: () => _flyTo(place.coords),
+      onTap: () => _onSuggestionTap(index, place),
       child: Container(
-        width: 200,
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
           gradient: LinearGradient(
@@ -362,7 +490,6 @@ class _WorldPageState extends State<WorldPage> with TickerProviderStateMixin {
         ),
         child: Stack(
           children: [
-            // Background circle
             Positioned(
               top: -20,
               right: -20,
@@ -379,7 +506,6 @@ class _WorldPageState extends State<WorldPage> with TickerProviderStateMixin {
               crossAxisAlignment: CrossAxisAlignment.start,
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                // Top: Category badge + Rating
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
@@ -412,7 +538,6 @@ class _WorldPageState extends State<WorldPage> with TickerProviderStateMixin {
                     ),
                   ],
                 ),
-                // Bottom: Name + Location
                 Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
@@ -472,7 +597,6 @@ class _WorldPageState extends State<WorldPage> with TickerProviderStateMixin {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Title bar
             Row(
               children: [
                 Container(
@@ -516,7 +640,6 @@ class _WorldPageState extends State<WorldPage> with TickerProviderStateMixin {
               ],
             ),
             const SizedBox(height: 18),
-            // Category + Coordinates
             Row(
               children: [
                 _detailChip(Icons.category_rounded, place.category),
@@ -526,7 +649,6 @@ class _WorldPageState extends State<WorldPage> with TickerProviderStateMixin {
               ],
             ),
             const SizedBox(height: 20),
-            // Action buttons
             Row(
               children: [
                 Expanded(
@@ -538,7 +660,7 @@ class _WorldPageState extends State<WorldPage> with TickerProviderStateMixin {
                     child: Container(
                       padding: const EdgeInsets.symmetric(vertical: 14),
                       decoration: BoxDecoration(
-                        color: _P.deepNavy,
+                        gradient: const LinearGradient(colors: [_P.blue, _P.deepNavy]),
                         borderRadius: BorderRadius.circular(50),
                       ),
                       child: const Row(
@@ -588,6 +710,180 @@ class _WorldPageState extends State<WorldPage> with TickerProviderStateMixin {
               style: const TextStyle(color: _P.deepNavy, fontSize: 12, fontWeight: FontWeight.w600)),
         ],
       ),
+    );
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════
+//  GLASS PANEL — frosted backdrop-blur container, the deck's material
+// ═══════════════════════════════════════════════════════════════════
+
+class _GlassPanel extends StatelessWidget {
+  final Widget child;
+  final double borderRadius;
+
+  const _GlassPanel({required this.child, this.borderRadius = 22});
+
+  @override
+  Widget build(BuildContext context) {
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(borderRadius),
+      child: BackdropFilter(
+        filter: ImageFilter.blur(sigmaX: 18, sigmaY: 18),
+        child: Container(
+          decoration: BoxDecoration(
+            color: Colors.white.withValues(alpha: 0.78),
+            borderRadius: BorderRadius.circular(borderRadius),
+            border: Border.all(color: Colors.white.withValues(alpha: 0.6), width: 1),
+            boxShadow: [
+              BoxShadow(
+                color: _P.deepNavy.withValues(alpha: 0.12),
+                blurRadius: 24,
+                offset: const Offset(0, 8),
+              ),
+            ],
+          ),
+          child: child,
+        ),
+      ),
+    );
+  }
+}
+
+class _GlassFab extends StatefulWidget {
+  final IconData icon;
+  final VoidCallback onTap;
+
+  const _GlassFab({required this.icon, required this.onTap});
+
+  @override
+  State<_GlassFab> createState() => _GlassFabState();
+}
+
+class _GlassFabState extends State<_GlassFab> {
+  bool _pressed = false;
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTapDown: (_) => setState(() => _pressed = true),
+      onTapUp: (_) => setState(() => _pressed = false),
+      onTapCancel: () => setState(() => _pressed = false),
+      onTap: widget.onTap,
+      child: AnimatedScale(
+        scale: _pressed ? 0.92 : 1.0,
+        duration: const Duration(milliseconds: 120),
+        child: Container(
+          width: 52,
+          height: 52,
+          decoration: BoxDecoration(
+            gradient: const LinearGradient(colors: [_P.deepNavy, _P.navy], begin: Alignment.topLeft, end: Alignment.bottomRight),
+            shape: BoxShape.circle,
+            boxShadow: [
+              BoxShadow(color: _P.navy.withValues(alpha: 0.35), blurRadius: 16, offset: const Offset(0, 6)),
+            ],
+          ),
+          child: Icon(widget.icon, color: Colors.white, size: 22),
+        ),
+      ),
+    );
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════
+//  DROPPING MARKER — staggered drop-in on first paint
+// ═══════════════════════════════════════════════════════════════════
+
+class _DroppingMarker extends StatelessWidget {
+  final Widget child;
+  final Duration delay;
+  final AnimationController controller;
+
+  const _DroppingMarker({required this.child, required this.delay, required this.controller});
+
+  @override
+  Widget build(BuildContext context) {
+    final totalMs = controller.duration!.inMilliseconds;
+    final delayMs = delay.inMilliseconds.clamp(0, totalMs - 1);
+    final startT = delayMs / totalMs;
+    final endT = (startT + 0.5).clamp(0.0, 1.0);
+
+    final animation = CurvedAnimation(
+      parent: controller,
+      curve: Interval(startT, endT, curve: Curves.easeOutBack),
+    );
+
+    return AnimatedBuilder(
+      animation: animation,
+      builder: (context, _) {
+        final t = animation.value.clamp(0.0, 1.0);
+        return Opacity(
+          opacity: t,
+          child: Transform.translate(
+            offset: Offset(0, (1 - t) * -18),
+            child: child,
+          ),
+        );
+      },
+    );
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════
+//  CURRENT LOCATION MARKER
+// ═══════════════════════════════════════════════════════════════════
+
+class _CurrentLocationMarker extends StatefulWidget {
+  const _CurrentLocationMarker();
+
+  @override
+  State<_CurrentLocationMarker> createState() => _CurrentLocationMarkerState();
+}
+
+class _CurrentLocationMarkerState extends State<_CurrentLocationMarker> with SingleTickerProviderStateMixin {
+  late AnimationController _controller;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(
+      vsync: this,
+      duration: const Duration(seconds: 2),
+    )..repeat(reverse: true);
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedBuilder(
+      animation: _controller,
+      builder: (context, child) {
+        return Container(
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            color: _P.blue.withValues(alpha: 0.2 + (_controller.value * 0.3)),
+            border: Border.all(color: Colors.white, width: 2),
+            boxShadow: [
+              BoxShadow(
+                color: _P.blue.withValues(alpha: 0.4),
+                blurRadius: 10 * _controller.value,
+                spreadRadius: 2 * _controller.value,
+              ),
+            ],
+          ),
+          child: const Center(
+            child: CircleAvatar(
+              radius: 6,
+              backgroundColor: _P.blue,
+            ),
+          ),
+        );
+      },
     );
   }
 }

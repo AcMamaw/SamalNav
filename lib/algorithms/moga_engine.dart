@@ -166,6 +166,7 @@ class MogaEngine {
     // f3: Time variance (how balanced the time is across stops)
     final avgTime = timeUsed / max(order.length, 1);
     double variance = 0;
+    // ignore: unused_local_variable
     double runningTime = 0;
     for (int i = 0; i < order.length; i++) {
       double travelTime = 0;

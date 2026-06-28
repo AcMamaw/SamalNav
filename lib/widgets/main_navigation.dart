@@ -1,3 +1,5 @@
+// ignore_for_file: unused_element
+
 import 'package:flutter/material.dart';
 import '../theme/palette.dart';
 import '../screens/home/home_page.dart';
