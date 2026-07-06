@@ -19,6 +19,9 @@ class MapPlace {
   final String category;
   final LatLng coords;
   final List<Color> gradient;
+  final bool isClosed;
+  final bool isUnderMaintenance;
+  final String imageUrl;
 
   const MapPlace({
     required this.name,
@@ -27,6 +30,9 @@ class MapPlace {
     required this.category,
     required this.coords,
     required this.gradient,
+    this.isClosed = false,
+    this.isUnderMaintenance = false,
+    required this.imageUrl,
   });
 }
 
@@ -36,22 +42,137 @@ class MapPlace {
 
 const _allPlaces = <MapPlace>[
   // Beach
-  MapPlace(name: 'Kaputian Beach', location: 'Kaputian, Samal', rating: 4.8, category: 'Beach', coords: LatLng(7.0568, 125.7230), gradient: [_P.skyBlue, _P.blue]),
-  MapPlace(name: 'Vanishing Island', location: 'Babak District', rating: 4.7, category: 'Beach', coords: LatLng(7.0600, 125.7400), gradient: [_P.blue, _P.navy]),
-  MapPlace(name: 'Secdea Beach Resort', location: 'Babak, Samal', rating: 4.8, category: 'Beach', coords: LatLng(7.0720, 125.7350), gradient: [_P.skyBlue, _P.navy]),
+  MapPlace(
+    name: 'Isla Reta Beach',
+    location: 'Talikud Island, Samal',
+    rating: 4.8,
+    category: 'Beach',
+    coords: LatLng(6.9360, 125.7597),
+    gradient: [_P.skyBlue, _P.blue],
+    imageUrl: 'https://images.unsplash.com/photo-1507525428034-b723cf961d3e?auto=format&fit=crop&w=500&q=80',
+  ),
+  MapPlace(
+    name: 'Kaputian Beach',
+    location: 'South Samal',
+    rating: 4.9,
+    category: 'Beach',
+    coords: LatLng(6.9644, 125.7235),
+    gradient: [_P.skyBlue, _P.navy],
+    imageUrl: 'https://images.unsplash.com/photo-1507525428034-b723cf961d3e?auto=format&fit=crop&w=500&q=80',
+  ),
+  MapPlace(
+    name: 'Canibad Beach',
+    location: 'Babak District',
+    rating: 4.6,
+    category: 'Beach',
+    coords: LatLng(7.1353, 125.7925),
+    gradient: [_P.skyBlue, _P.blue],
+    imageUrl: 'https://images.unsplash.com/photo-1439066615861-d1af74d74000?auto=format&fit=crop&w=500&q=80',
+  ),
+  MapPlace(
+    name: 'Paradise Island',
+    location: 'Penaplata, Samal',
+    rating: 4.7,
+    category: 'Beach',
+    coords: LatLng(7.1158, 125.6881),
+    gradient: [_P.skyBlue, _P.navy],
+    imageUrl: 'https://images.unsplash.com/photo-1506929562872-bb421503ef21?auto=format&fit=crop&w=500&q=80',
+  ),
+  MapPlace(
+    name: 'Vanishing Island',
+    location: 'Babak District',
+    rating: 4.7,
+    category: 'Beach',
+    coords: LatLng(7.0700, 125.7100),
+    gradient: [_P.blue, _P.navy],
+    imageUrl: 'https://images.unsplash.com/photo-1473116763269-255448993f66?auto=format&fit=crop&w=500&q=80',
+  ),
   // Falls
-  MapPlace(name: 'Hagimit Falls', location: 'Penaplata, Samal', rating: 4.7, category: 'Falls', coords: LatLng(7.0931, 125.7361), gradient: [_P.blue, _P.navy]),
-  MapPlace(name: 'Camp Sabros Falls', location: 'Penaplata, Samal', rating: 4.5, category: 'Falls', coords: LatLng(7.0880, 125.7300), gradient: [_P.skyBlue, _P.blue]),
+  MapPlace(
+    name: 'Hagimit Falls',
+    location: 'Penaplata, Samal',
+    rating: 4.7,
+    category: 'Falls',
+    coords: LatLng(7.0666, 125.7230),
+    gradient: [_P.blue, _P.navy],
+    imageUrl: 'https://images.unsplash.com/photo-1470071459604-3b5ec3a7fe05?auto=format&fit=crop&w=500&q=80',
+  ),
   // Mountain
-  MapPlace(name: 'Mt. Puting Bato', location: 'Bali-Bali, Samal', rating: 4.6, category: 'Mountain', coords: LatLng(7.1050, 125.7200), gradient: [_P.navy, _P.deepNavy]),
+  MapPlace(
+    name: 'Mt. Puting Bato',
+    location: 'Bali-Bali, Samal',
+    rating: 4.6,
+    category: 'Mountain',
+    coords: LatLng(7.0656, 125.7681),
+    gradient: [_P.navy, _P.deepNavy],
+    imageUrl: 'https://images.unsplash.com/photo-1454496522488-7a8e488e8606?auto=format&fit=crop&w=500&q=80',
+  ),
   // Resort
-  MapPlace(name: 'Pearl Farm Resort', location: 'Kaputian, Samal', rating: 4.9, category: 'Resort', coords: LatLng(7.0475, 125.7125), gradient: [_P.skyBlue, _P.blue]),
-  MapPlace(name: 'Maxima Aquafun', location: 'Penaplata, Samal', rating: 4.6, category: 'Resort', coords: LatLng(7.0834, 125.7298), gradient: [_P.blue, _P.navy]),
+  MapPlace(
+    name: 'Pearl Farm Resort',
+    location: 'Kaputian, Samal',
+    rating: 4.9,
+    category: 'Resort',
+    coords: LatLng(7.0050, 125.7271),
+    gradient: [_P.skyBlue, _P.blue],
+    imageUrl: 'https://images.unsplash.com/photo-1544735716-392fe2489ffa?auto=format&fit=crop&w=500&q=80',
+  ),
+  MapPlace(
+    name: 'Maxima Aquafun',
+    location: 'Penaplata, Samal',
+    rating: 4.6,
+    category: 'Resort',
+    coords: LatLng(7.0425, 125.7275),
+    gradient: [_P.blue, _P.navy],
+    imageUrl: 'https://images.unsplash.com/photo-1538964173425-93884d739596?auto=format&fit=crop&w=500&q=80',
+  ),
+  MapPlace(
+    name: 'Bali-Bali View Deck',
+    location: 'Penaplata, Samal',
+    rating: 4.5,
+    category: 'Resort',
+    coords: LatLng(7.0125, 125.7198),
+    gradient: [_P.blue, _P.navy],
+    imageUrl: 'https://images.unsplash.com/photo-1506929562872-bb421503ef21?auto=format&fit=crop&w=500&q=80',
+  ),
   // Island
-  MapPlace(name: 'Talikud Island', location: 'Kaputian District', rating: 4.8, category: 'Island', coords: LatLng(6.9950, 125.7000), gradient: [_P.skyBlue, _P.navy]),
+  MapPlace(
+    name: 'Talikud Island',
+    location: 'Kaputian District',
+    rating: 4.8,
+    category: 'Island',
+    coords: LatLng(6.9322, 125.6987),
+    gradient: [_P.skyBlue, _P.navy],
+    imageUrl: 'https://images.unsplash.com/photo-1505118380757-91f5f5632de0?auto=format&fit=crop&w=500&q=80',
+  ),
+  MapPlace(
+    name: 'Coral Garden',
+    location: 'Talikud, Samal',
+    rating: 4.7,
+    category: 'Island',
+    coords: LatLng(6.9280, 125.7020),
+    gradient: [_P.skyBlue, _P.navy],
+    imageUrl: 'https://images.unsplash.com/photo-1544735716-392fe2489ffa?auto=format&fit=crop&w=500&q=80',
+  ),
   // Historical
-  MapPlace(name: 'Monfort Bat Cave', location: 'Babak, Samal', rating: 4.5, category: 'Historical', coords: LatLng(7.0768, 125.7420), gradient: [_P.navy, _P.deepNavy]),
-  MapPlace(name: 'Ligid Cave', location: 'Penaplata, Samal', rating: 4.4, category: 'Historical', coords: LatLng(7.0900, 125.7100), gradient: [_P.blue, _P.navy]),
+  MapPlace(
+    name: 'Monfort Bat Cave',
+    location: 'Babak, Samal',
+    rating: 4.5,
+    category: 'Historical',
+    coords: LatLng(7.1260, 125.7140),
+    gradient: [_P.navy, _P.deepNavy],
+    imageUrl: 'https://images.unsplash.com/photo-1507163546605-a84d8ff1a3bb?auto=format&fit=crop&w=500&q=80',
+  ),
+  MapPlace(
+    name: 'Ligid Island Cave',
+    location: 'Penaplata, Samal',
+    rating: 4.4,
+    category: 'Historical',
+    coords: LatLng(7.1850, 125.7550),
+    gradient: [_P.blue, _P.navy],
+    imageUrl: 'https://images.unsplash.com/photo-1510414842594-a61c69b5ae57?auto=format&fit=crop&w=500&q=80',
+  ),
 ];
 
 // ═══════════════════════════════════════════════════════════════════
@@ -72,23 +193,29 @@ const _categories = <Map<String, dynamic>>[
 //  WORLD PAGE
 // ═══════════════════════════════════════════════════════════════════
 
-class WorldPage extends StatefulWidget {
-  const WorldPage({super.key});
+class MapPage extends StatefulWidget {
+  const MapPage({super.key});
 
   @override
-  State<WorldPage> createState() => _WorldPageState();
+  State<MapPage> createState() => _MapPageState();
 }
 
-class _WorldPageState extends State<WorldPage> with TickerProviderStateMixin {
+class _MapPageState extends State<MapPage> with TickerProviderStateMixin {
   final MapController _mapController = MapController();
   String _selectedCategory = 'All';
   final TextEditingController _searchController = TextEditingController();
   final PageController _cardController = PageController(viewportFraction: 0.62);
+  bool _isSatelliteMode = true;
 
   LatLng? _currentLocation;
   List<LatLng> _routePolyline = [];
 
+  // Journey tracking
+  bool _journeyStarted = false;
+  int _completedStops = 0;
+
   late AnimationController _markerDropController;
+  late AnimationController _carPulseController;
   double _cardPage = 0;
   int? _focusedPlaceIndex;
 
@@ -102,6 +229,11 @@ class _WorldPageState extends State<WorldPage> with TickerProviderStateMixin {
       vsync: this,
       duration: const Duration(milliseconds: 900),
     )..forward();
+
+    _carPulseController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 1200),
+    )..repeat(reverse: true);
 
     _cardController.addListener(() {
       setState(() => _cardPage = _cardController.page ?? 0);
@@ -203,6 +335,7 @@ class _WorldPageState extends State<WorldPage> with TickerProviderStateMixin {
     _mapController.dispose();
     _cardController.dispose();
     _markerDropController.dispose();
+    _carPulseController.dispose();
     super.dispose();
   }
 
@@ -225,25 +358,61 @@ class _WorldPageState extends State<WorldPage> with TickerProviderStateMixin {
               ),
             ),
             children: [
-              TileLayer(
-                urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
-                userAgentPackageName: 'com.samal.nav',
-                maxZoom: 18,
-              ),
+              _isSatelliteMode
+                  ? TileLayer(
+                      urlTemplate: 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
+                      userAgentPackageName: 'com.samal.nav',
+                      maxZoom: 19,
+                    )
+                  : TileLayer(
+                      urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+                      userAgentPackageName: 'com.samal.nav',
+                      maxZoom: 19,
+                    ),
 
-              // ── Route Polyline ─────────────────────────────────
-              if (_routePolyline.isNotEmpty)
+              // ── Route Polylines (red = remaining, green = completed) ──
+              if (_routePolyline.length >= 2) ...[
+                // Green: completed segments
+                if (_journeyStarted && _completedStops > 0 && _completedStops < _routePolyline.length)
+                  PolylineLayer(
+                    polylines: [
+                      Polyline(
+                        points: _routePolyline.sublist(0, _completedStops.clamp(0, _routePolyline.length)),
+                        color: const Color(0xFF4CAF50),
+                        strokeWidth: 5.0,
+                        borderColor: Colors.white,
+                        borderStrokeWidth: 1.5,
+                      ),
+                    ],
+                  ),
+                // Red or blue: remaining segments
                 PolylineLayer(
                   polylines: [
                     Polyline(
-                      points: _routePolyline,
-                      color: _P.blue,
-                      strokeWidth: 4.0,
+                      points: _journeyStarted
+                          ? _routePolyline.sublist((_completedStops - 1).clamp(0, _routePolyline.length - 1))
+                          : _routePolyline,
+                      color: _journeyStarted ? const Color(0xFFE53935) : _P.blue,
+                      strokeWidth: _journeyStarted ? 5.0 : 4.0,
                       borderColor: Colors.white,
                       borderStrokeWidth: 1.5,
                     ),
                   ],
                 ),
+                // All green when journey completed
+                if (_journeyStarted && _completedStops >= _routePolyline.length)
+                  PolylineLayer(
+                    polylines: [
+                      Polyline(
+                        points: _routePolyline,
+                        color: const Color(0xFF4CAF50),
+                        strokeWidth: 5.0,
+                        borderColor: Colors.white,
+                        borderStrokeWidth: 1.5,
+                      ),
+                    ],
+                  ),
+              ],
 
               // ── Place Markers ──────────────────────────────────
               MarkerLayer(
@@ -261,23 +430,35 @@ class _WorldPageState extends State<WorldPage> with TickerProviderStateMixin {
                         delay: Duration(milliseconds: 40 * i),
                         controller: _markerDropController,
                         child: GestureDetector(
-                          onTap: () => _showMarkerDetail(place),
+                          onTap: place.isClosed ? null : () => _showMarkerDetail(place),
                           child: AnimatedContainer(
                             duration: const Duration(milliseconds: 280),
                             curve: Curves.easeOutCubic,
                             decoration: BoxDecoration(
-                              gradient: LinearGradient(colors: place.gradient, begin: Alignment.topLeft, end: Alignment.bottomRight),
+                              gradient: LinearGradient(
+                                colors: place.isClosed
+                                    ? [Colors.grey.shade400, Colors.grey.shade600]
+                                    : place.isUnderMaintenance
+                                        ? [const Color(0xFFFFCA28), const Color(0xFFF57F17)]
+                                        : const [_P.skyBlue, _P.blue],
+                                begin: Alignment.topLeft,
+                                end: Alignment.bottomRight,
+                              ),
                               shape: BoxShape.circle,
                               border: Border.all(color: Colors.white, width: isFocused ? 3 : 2),
                               boxShadow: [
                                 BoxShadow(
-                                  color: place.gradient[1].withValues(alpha: isFocused ? 0.55 : 0.4),
+                                  color: (place.isClosed ? Colors.grey.shade600 : place.isUnderMaintenance ? const Color(0xFFF57F17) : _P.blue).withValues(alpha: isFocused ? 0.55 : 0.4),
                                   blurRadius: isFocused ? 14 : 8,
                                   offset: const Offset(0, 3),
                                 ),
                               ],
                             ),
-                            child: Icon(Icons.location_on_rounded, color: Colors.white, size: isFocused ? 24 : 20),
+                            child: Icon(
+                              place.isClosed ? Icons.lock_rounded : place.isUnderMaintenance ? Icons.construction_rounded : Icons.location_on_rounded, 
+                              color: Colors.white, 
+                              size: isFocused ? 24 : 20,
+                            ),
                           ),
                         ),
                       ),
@@ -289,6 +470,16 @@ class _WorldPageState extends State<WorldPage> with TickerProviderStateMixin {
                       width: 50,
                       height: 50,
                       child: const _CurrentLocationMarker(),
+                    ),
+                  // Car marker on the route
+                  if (_journeyStarted && _routePolyline.isNotEmpty)
+                    Marker(
+                      point: _completedStops < _routePolyline.length
+                          ? _routePolyline[_completedStops.clamp(0, _routePolyline.length - 1)]
+                          : _routePolyline.last,
+                      width: 56,
+                      height: 56,
+                      child: _CarMarker(pulseController: _carPulseController),
                     ),
                 ],
               ),
@@ -347,7 +538,7 @@ class _WorldPageState extends State<WorldPage> with TickerProviderStateMixin {
                                 scrollDirection: Axis.horizontal,
                                 padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 9),
                                 itemCount: _categories.length,
-                                separatorBuilder: (_, __) => const SizedBox(width: 8),
+                                separatorBuilder: (_, _) => const SizedBox(width: 8),
                                 itemBuilder: (_, i) {
                                   final cat = _categories[i];
                                   final name = cat['name'] as String;
@@ -444,6 +635,20 @@ class _WorldPageState extends State<WorldPage> with TickerProviderStateMixin {
             ),
           ),
 
+          // ── Satellite Toggle FAB ────────────────────────────────
+          Positioned(
+            bottom: 235,
+            right: 18,
+            child: _GlassFab(
+              icon: _isSatelliteMode
+                  ? Icons.map_rounded
+                  : Icons.satellite_alt_rounded,
+              onTap: () {
+                setState(() => _isSatelliteMode = !_isSatelliteMode);
+              },
+            ),
+          ),
+
           // ── My Location FAB ─────────────────────────────────────
           Positioned(
             bottom: 175,
@@ -459,6 +664,106 @@ class _WorldPageState extends State<WorldPage> with TickerProviderStateMixin {
               },
             ),
           ),
+
+          // ── Journey Control FAB ──────────────────────────────────
+          if (_routePolyline.isNotEmpty)
+            Positioned(
+              bottom: 175,
+              left: 18,
+              child: Column(
+                children: [
+                  // Start / Complete Journey button
+                  if (!_journeyStarted)
+                    GestureDetector(
+                      onTap: () => setState(() {
+                        _journeyStarted = true;
+                        _completedStops = 0;
+                      }),
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                        decoration: BoxDecoration(
+                          gradient: const LinearGradient(colors: [Color(0xFF4CAF50), Color(0xFF388E3C)]),
+                          borderRadius: BorderRadius.circular(50),
+                          boxShadow: [BoxShadow(color: const Color(0xFF4CAF50).withValues(alpha: 0.4), blurRadius: 12, offset: const Offset(0, 4))],
+                        ),
+                        child: const Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(Icons.play_arrow_rounded, color: Colors.white, size: 20),
+                            SizedBox(width: 6),
+                            Text('Start Journey', style: TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.w800)),
+                          ],
+                        ),
+                      ),
+                    ),
+                  if (_journeyStarted && _completedStops < _routePolyline.length)
+                    GestureDetector(
+                      onTap: () {
+                        setState(() => _completedStops++);
+                        if (_completedStops < _routePolyline.length) {
+                          _flyTo(_routePolyline[_completedStops], zoom: 14.0);
+                        }
+                        if (_completedStops >= _routePolyline.length) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(
+                              content: const Row(
+                                children: [
+                                  Icon(Icons.celebration_rounded, color: Colors.white, size: 20),
+                                  SizedBox(width: 10),
+                                  Text('Journey Complete! 🎉', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w700, fontSize: 15)),
+                                ],
+                              ),
+                              backgroundColor: const Color(0xFF4CAF50),
+                              behavior: SnackBarBehavior.floating,
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                              duration: const Duration(seconds: 3),
+                            ),
+                          );
+                        }
+                      },
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                        decoration: BoxDecoration(
+                          gradient: const LinearGradient(colors: [Color(0xFFE53935), Color(0xFFC62828)]),
+                          borderRadius: BorderRadius.circular(50),
+                          boxShadow: [BoxShadow(color: const Color(0xFFE53935).withValues(alpha: 0.4), blurRadius: 12, offset: const Offset(0, 4))],
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            const Icon(Icons.check_circle_rounded, color: Colors.white, size: 18),
+                            const SizedBox(width: 6),
+                            Text('Stop ${_completedStops + 1} ✓', style: const TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.w800)),
+                          ],
+                        ),
+                      ),
+                    ),
+                  if (_journeyStarted && _completedStops >= _routePolyline.length)
+                    GestureDetector(
+                      onTap: () => setState(() {
+                        _journeyStarted = false;
+                        _completedStops = 0;
+                      }),
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                        decoration: BoxDecoration(
+                          gradient: const LinearGradient(colors: [_P.blue, _P.deepNavy]),
+                          borderRadius: BorderRadius.circular(50),
+                          boxShadow: [BoxShadow(color: _P.deepNavy.withValues(alpha: 0.4), blurRadius: 12, offset: const Offset(0, 4))],
+                        ),
+                        child: const Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(Icons.refresh_rounded, color: Colors.white, size: 18),
+                            SizedBox(width: 6),
+                            Text('Reset', style: TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.w800)),
+                          ],
+                        ),
+                      ),
+                    ),
+                ],
+              ),
+            ),
         ],
       ),
     );
@@ -474,15 +779,18 @@ class _WorldPageState extends State<WorldPage> with TickerProviderStateMixin {
       child: Container(
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
-          gradient: LinearGradient(
-            colors: place.gradient,
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
+          image: DecorationImage(
+            image: NetworkImage(place.imageUrl),
+            fit: BoxFit.cover,
+            colorFilter: ColorFilter.mode(
+              Colors.black.withValues(alpha: 0.38),
+              BlendMode.srcOver,
+            ),
           ),
           borderRadius: BorderRadius.circular(22),
           boxShadow: [
             BoxShadow(
-              color: place.gradient[1].withValues(alpha: 0.35),
+              color: Colors.black.withValues(alpha: 0.15),
               blurRadius: 16,
               offset: const Offset(0, 8),
             ),
@@ -599,14 +907,22 @@ class _WorldPageState extends State<WorldPage> with TickerProviderStateMixin {
           children: [
             Row(
               children: [
-                Container(
-                  width: 52,
-                  height: 52,
-                  decoration: BoxDecoration(
-                    gradient: LinearGradient(colors: place.gradient),
-                    borderRadius: BorderRadius.circular(16),
+                 ClipRRect(
+                  borderRadius: BorderRadius.circular(16),
+                  child: Image.network(
+                    place.imageUrl,
+                    width: 52,
+                    height: 52,
+                    fit: BoxFit.cover,
+                    errorBuilder: (_, _, _) => Container(
+                      width: 52,
+                      height: 52,
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(colors: place.gradient),
+                      ),
+                      child: const Icon(Icons.location_on_rounded, color: Colors.white, size: 24),
+                    ),
                   ),
-                  child: const Icon(Icons.location_on_rounded, color: Colors.white, size: 24),
                 ),
                 const SizedBox(width: 14),
                 Expanded(
@@ -830,6 +1146,52 @@ class _DroppingMarker extends StatelessWidget {
 }
 
 // ═══════════════════════════════════════════════════════════════════
+//  CAR MARKER (animated vehicle icon on route)
+// ═══════════════════════════════════════════════════════════════════
+
+class _CarMarker extends StatelessWidget {
+  final AnimationController pulseController;
+
+  const _CarMarker({required this.pulseController});
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedBuilder(
+      animation: pulseController,
+      builder: (_, _) {
+        final scale = 1.0 + (pulseController.value * 0.12);
+        return Transform.scale(
+          scale: scale,
+          child: Container(
+            width: 48,
+            height: 48,
+            decoration: BoxDecoration(
+              color: Colors.white,
+              shape: BoxShape.circle,
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.redAccent.withValues(alpha: 0.45),
+                  blurRadius: 16,
+                  offset: const Offset(0, 4),
+                ),
+              ],
+              border: Border.all(color: Colors.redAccent, width: 3),
+            ),
+            child: const Center(
+              child: Icon(
+                Icons.location_on_rounded,
+                color: Colors.redAccent,
+                size: 24,
+              ),
+            ),
+          ),
+        );
+      },
+    );
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════
 //  CURRENT LOCATION MARKER
 // ═══════════════════════════════════════════════════════════════════
 
@@ -887,3 +1249,4 @@ class _CurrentLocationMarkerState extends State<_CurrentLocationMarker> with Sin
     );
   }
 }
+

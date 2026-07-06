@@ -10,13 +10,13 @@ typedef _P = AppPalette;
 //  multi-day ItineraryResult is supplied (never both).
 // ═══════════════════════════════════════════════════════════════════
 
-class RouteResultsPage extends StatefulWidget {
+class PlanResultsPage extends StatefulWidget {
   final List<Destination> destinations;
   final RouteResult? dayResult;
   final ItineraryResult? itineraryResult;
   final DateTime tripStartDate;
 
-  const RouteResultsPage({
+  const PlanResultsPage({
     super.key,
     required this.destinations,
     required this.tripStartDate,
@@ -25,10 +25,10 @@ class RouteResultsPage extends StatefulWidget {
   }) : assert(dayResult != null || itineraryResult != null, 'Provide either dayResult or itineraryResult');
 
   @override
-  State<RouteResultsPage> createState() => _RouteResultsPageState();
+  State<PlanResultsPage> createState() => _PlanResultsPageState();
 }
 
-class _RouteResultsPageState extends State<RouteResultsPage> with SingleTickerProviderStateMixin {
+class _PlanResultsPageState extends State<PlanResultsPage> with SingleTickerProviderStateMixin {
   late AnimationController _revealController;
 
   @override
@@ -459,7 +459,7 @@ class _RouteResultsPageState extends State<RouteResultsPage> with SingleTickerPr
   Widget _buildViewMapButton(BuildContext context) {
     return _Tappable(
       onTap: () {
-        Navigator.of(context).pushReplacementNamed('/world', arguments: {'isTabSwitch': true});
+        Navigator.of(context).pushReplacementNamed('/map', arguments: {'isTabSwitch': true});
       },
       child: Container(
         decoration: BoxDecoration(

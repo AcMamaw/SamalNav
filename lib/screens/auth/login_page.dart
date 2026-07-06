@@ -1,4 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
+import '../../services/audit_service.dart';
+import '../../services/role_service.dart';
 
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key});
@@ -14,6 +17,7 @@ class _LoginPageState extends State<LoginPage>
   final _passwordController = TextEditingController();
   bool _obscurePassword = true;
   bool _isLoading = false;
+  bool _isSocialLoading = false;
 
   late AnimationController _animController;
   late Animation<double> _fadeIn;
@@ -43,16 +47,103 @@ class _LoginPageState extends State<LoginPage>
     super.dispose();
   }
 
+  // ── Shared snackbar helper (matches Register page styling) ──────────
+  void _showSnack(String msg, {bool isError = false}) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          msg,
+          style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w600),
+        ),
+        backgroundColor: isError ? Colors.redAccent : Colors.green.shade600,
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+        duration: const Duration(seconds: 3),
+      ),
+    );
+  }
+
+  // ── Email OR Username + Password login ───────────────────────────────
   void _handleLogin() async {
     if (_formKey.currentState!.validate()) {
       setState(() => _isLoading = true);
-      // TODO: Add your login logic / API call here
-      await Future.delayed(const Duration(seconds: 2));
-      setState(() => _isLoading = false);
-      // TODO: Navigate to home/dashboard on success
+      try {
+        String loginInput = _emailController.text.trim();
+        String loginEmail = loginInput;
+
+        // If it's not an email, treat it as a username and look up the email
+        if (!loginInput.contains('@')) {
+          final match = await Supabase.instance.client
+              .from('profiles')
+              .select('email')
+              .eq('username', loginInput)
+              .maybeSingle();
+
+          if (match == null || match['email'] == null) {
+            _showSnack('No account found for that username', isError: true);
+            setState(() => _isLoading = false);
+            return;
+          }
+          loginEmail = match['email'] as String;
+        }
+
+        await Supabase.instance.client.auth.signInWithPassword(
+          email: loginEmail,
+          password: _passwordController.text.trim(),
+        );
+
+        if (!mounted) return;
+        final role = await RoleService.fetchCurrentUserRole();
+        await AuditService.log('LOGIN', '${role.label} signed in');
+        if (mounted) {
+          Navigator.of(context).pushReplacementNamed(
+            RoleService.homeRouteFor(role),
+          );
+        }
+      } on AuthException catch (error) {
+        _showSnack(error.message, isError: true);
+      } catch (error) {
+        _showSnack('An error occurred: $error', isError: true);
+      } finally {
+        if (mounted) {
+          setState(() => _isLoading = false);
+        }
+      }
     }
   }
 
+  // ── Google OAuth ──────────────────────────────────────────────────────
+  Future<void> _signInWithGoogle() async {
+    setState(() => _isSocialLoading = true);
+    try {
+      await Supabase.instance.client.auth.signInWithOAuth(
+        OAuthProvider.google,
+        redirectTo: 'io.supabase.samalnav://login-callback',
+      );
+      // Navigation to /home happens automatically via your auth state
+      // listener (e.g. in main.dart) once the OAuth redirect completes.
+    } catch (e) {
+      _showSnack('Google sign-in failed: $e', isError: true);
+    } finally {
+      if (mounted) setState(() => _isSocialLoading = false);
+    }
+  }
+
+  // ── Facebook OAuth ────────────────────────────────────────────────────
+  Future<void> _signInWithFacebook() async {
+    setState(() => _isSocialLoading = true);
+    try {
+      await Supabase.instance.client.auth.signInWithOAuth(
+        OAuthProvider.facebook,
+        redirectTo: 'io.supabase.samalnav://login-callback',
+      );
+    } catch (e) {
+      _showSnack('Facebook sign-in failed: $e', isError: true);
+    } finally {
+      if (mounted) setState(() => _isSocialLoading = false);
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -87,9 +178,9 @@ class _LoginPageState extends State<LoginPage>
             decoration: BoxDecoration(
               gradient: LinearGradient(
                 colors: [
-                  const Color(0xFF061020).withOpacity(0.75),
-                  const Color(0xFF061020).withOpacity(0.88),
-                  const Color(0xFF061020).withOpacity(0.96),
+                  const Color(0xFF061020).withValues(alpha: 0.75),
+                  const Color(0xFF061020).withValues(alpha: 0.88),
+                  const Color(0xFF061020).withValues(alpha: 0.96),
                 ],
                 begin: Alignment.topCenter,
                 end: Alignment.bottomCenter,
@@ -110,7 +201,7 @@ class _LoginPageState extends State<LoginPage>
                   width: 50,
                   height: 5,
                   decoration: BoxDecoration(
-                    color: Colors.white.withOpacity(0.4),
+                    color: Colors.white.withValues(alpha: 0.4),
                     borderRadius: BorderRadius.circular(10),
                   ),
                 ),
@@ -139,10 +230,10 @@ class _LoginPageState extends State<LoginPage>
                         Container(
                           padding: const EdgeInsets.all(22),
                           decoration: BoxDecoration(
-                            color: Colors.white.withOpacity(0.12),
+                            color: Colors.white.withValues(alpha: 0.12),
                             shape: BoxShape.circle,
                             border: Border.all(
-                                color: Colors.white.withOpacity(0.3),
+                                color: Colors.white.withValues(alpha: 0.3),
                                 width: 2),
                           ),
                           child: const Icon(Icons.person_rounded,
@@ -171,32 +262,29 @@ class _LoginPageState extends State<LoginPage>
                         Container(
                           padding: const EdgeInsets.all(24),
                           decoration: BoxDecoration(
-                            color: Colors.white.withOpacity(0.08),
+                            color: Colors.white.withValues(alpha: 0.08),
                             borderRadius: BorderRadius.circular(24),
                             border: Border.all(
-                                color: Colors.white.withOpacity(0.18),
+                                color: Colors.white.withValues(alpha: 0.18),
                                 width: 1.5),
                           ),
                           child: Form(
                             key: _formKey,
                             child: Column(
                               children: [
-                                // Email
+                                // Email or Username
                                 TextFormField(
                                   controller: _emailController,
                                   keyboardType: TextInputType.emailAddress,
                                   style:
                                       const TextStyle(color: Colors.white),
                                   decoration: _inputDecoration(
-                                    label: 'Email Address',
-                                    icon: Icons.email_outlined,
+                                    label: 'Email or Username',
+                                    icon: Icons.person_outline_rounded,
                                   ),
                                   validator: (val) {
-                                    if (val == null || val.isEmpty) {
-                                      return 'Please enter your email';
-                                    }
-                                    if (!val.contains('@')) {
-                                      return 'Enter a valid email';
+                                    if (val == null || val.trim().isEmpty) {
+                                      return 'Please enter your email or username';
                                     }
                                     return null;
                                   },
@@ -299,7 +387,7 @@ class _LoginPageState extends State<LoginPage>
                         // ── Social Login Options ──────────────────────
                         Row(
                           children: [
-                            Expanded(child: Divider(color: Colors.white.withOpacity(0.3))),
+                            Expanded(child: Divider(color: Colors.white.withValues(alpha: 0.3))),
                             const Padding(
                               padding: EdgeInsets.symmetric(horizontal: 16),
                               child: Text(
@@ -307,7 +395,7 @@ class _LoginPageState extends State<LoginPage>
                                 style: TextStyle(color: Colors.white70, fontSize: 13),
                               ),
                             ),
-                            Expanded(child: Divider(color: Colors.white.withOpacity(0.3))),
+                            Expanded(child: Divider(color: Colors.white.withValues(alpha: 0.3))),
                           ],
                         ),
                         const SizedBox(height: 24),
@@ -337,7 +425,7 @@ class _LoginPageState extends State<LoginPage>
                                       ),
                                     ),
                                   ),
-                                  onPressed: () {},
+                                  onPressed: _isSocialLoading ? null : _signInWithGoogle,
                                 ),
                               ),
                               const SizedBox(width: 16),
@@ -346,7 +434,7 @@ class _LoginPageState extends State<LoginPage>
                                 child: _socialButton(
                                   label: 'Facebook',
                                   iconWidget: const Icon(Icons.facebook, color: Color(0xFF1877F2), size: 28),
-                                  onPressed: () {},
+                                  onPressed: _isSocialLoading ? null : _signInWithFacebook,
                                 ),
                               ),
                             ],
@@ -399,11 +487,11 @@ class _LoginPageState extends State<LoginPage>
       labelStyle: const TextStyle(color: Colors.white60),
       prefixIcon: Icon(icon, color: Colors.white54),
       filled: true,
-      fillColor: Colors.white.withOpacity(0.08),
+      fillColor: Colors.white.withValues(alpha: 0.08),
       enabledBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(14),
         borderSide:
-            BorderSide(color: Colors.white.withOpacity(0.22), width: 1.2),
+            BorderSide(color: Colors.white.withValues(alpha: 0.22), width: 1.2),
       ),
       focusedBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(14),
@@ -422,16 +510,16 @@ class _LoginPageState extends State<LoginPage>
   }
 
   Widget _socialButton(
-      {required String label, required Widget iconWidget, required VoidCallback onPressed}) {
+      {required String label, required Widget iconWidget, required VoidCallback? onPressed}) {
     return InkWell(
       onTap: onPressed,
       borderRadius: BorderRadius.circular(12),
       child: Container(
         padding: const EdgeInsets.symmetric(vertical: 12),
         decoration: BoxDecoration(
-          color: Colors.white.withOpacity(0.1),
+          color: Colors.white.withValues(alpha: 0.1),
           borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: Colors.white.withOpacity(0.2)),
+          border: Border.all(color: Colors.white.withValues(alpha: 0.2)),
         ),
         child: Row(
           mainAxisAlignment: MainAxisAlignment.center,

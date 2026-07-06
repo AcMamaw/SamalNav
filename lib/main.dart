@@ -1,10 +1,24 @@
 import 'package:flutter/material.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
+import 'config/routes.dart';
+import 'config/supabase_config.dart';
 import 'screens/landing/mainlanding.dart';
 import 'screens/auth/login_page.dart';
 import 'screens/auth/register_page.dart';
+import 'screens/auth/management_login_page.dart'; // NEW
+import 'screens/establishment/establishment_dashboard.dart';
+import 'screens/admin/administrator_dashboard.dart';
+import 'screens/admin/super_admin_dashboard.dart';
 import 'widgets/main_navigation.dart';
 
-void main() {
+void main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+
+  await Supabase.initialize(
+    url: SupabaseConfig.url,
+    anonKey: SupabaseConfig.anonKey, // ignore: deprecated_member_use
+  );
+
   runApp(const SamalNavApp());
 }
 
@@ -26,40 +40,66 @@ class SamalNavApp extends StatelessWidget {
       ),
 
       // ─── Custom Page Routes (Slide Up Animation) ────────────────────
-      initialRoute: '/',
+      initialRoute: AppRoutes.landing,
       onGenerateRoute: (settings) {
         Widget page;
         switch (settings.name) {
-          case '/':
+          case AppRoutes.landing:
             page = const MainLandingPage();
             break;
-          case '/login':
+          case AppRoutes.login:
             page = const LoginPage();
             break;
-          case '/register':
+          case AppRoutes.register:
             page = const RegisterPage();
             break;
-          case '/home': page = const MainNavigation(initialIndex: 0); break;
-          case '/world': page = const MainNavigation(initialIndex: 1); break;
-          case '/message': page = const MainNavigation(initialIndex: 2); break;
-          case '/favorite': page = const MainNavigation(initialIndex: 3); break;
-          case '/profile': page = const MainNavigation(initialIndex: 4); break;
-          default: page = const MainLandingPage();
+          case AppRoutes.managementLogin: // NEW
+            page = const ManagementLoginPage();
+            break;
+          case AppRoutes.home:
+            page = const MainNavigation(initialIndex: 0);
+            break;
+          case AppRoutes.plan:
+            page = const MainNavigation(initialIndex: 1);
+            break;
+          case AppRoutes.map:
+            page = const MainNavigation(initialIndex: 2);
+            break;
+          case AppRoutes.favorite:
+            page = const MainNavigation(initialIndex: 3);
+            break;
+          case AppRoutes.profile:
+            page = const MainNavigation(initialIndex: 4);
+            break;
+          case AppRoutes.establishment:
+            page = const EstablishmentDashboard();
+            break;
+          case AppRoutes.administrator:
+            page = const AdministratorDashboard();
+            break;
+          case AppRoutes.superAdmin:
+            page = const SuperAdminDashboard();
+            break;
+          default:
+            page = const MainLandingPage();
         }
 
-        final isTabRoute = ['/home', '/world', '/message', '/favorite', '/profile'].contains(settings.name);
+        final isTabRoute = AppRoutes.touristRoutes.contains(settings.name);
         final args = settings.arguments as Map<String, dynamic>?;
         final isTabSwitch = args?['isTabSwitch'] == true;
 
-        if (settings.name == '/login' || settings.name == '/register' || isTabRoute) {
+        if (settings.name == AppRoutes.login ||
+            settings.name == AppRoutes.register ||
+            settings.name == AppRoutes.managementLogin || // NEW
+            isTabRoute) {
           return PageRouteBuilder(
             settings: settings,
-            opaque: false, 
+            opaque: false,
             transitionDuration: isTabSwitch ? Duration.zero : const Duration(milliseconds: 500),
             pageBuilder: (context, animation, secondaryAnimation) => page,
             transitionsBuilder: (context, animation, secondaryAnimation, child) {
-              if (isTabSwitch) return child; 
-              
+              if (isTabSwitch) return child;
+
               const begin = Offset(0.0, 1.0);
               const end = Offset.zero;
               const curve = Curves.easeOutCubic;

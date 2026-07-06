@@ -1,10 +1,14 @@
 // ignore_for_file: unused_element
 
 import 'package:flutter/material.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
+import '../models/app_role.dart';
+import '../services/role_service.dart';
+import 'guest_redirect_view.dart';
 import '../theme/palette.dart';
 import '../screens/home/home_page.dart';
-import '../screens/world/world_page.dart';
-import '../screens/route/route_page.dart';
+import '../screens/map/map_page.dart';
+import '../screens/plan/plan_page.dart';
 import '../screens/favorite/favorite_page.dart';
 import '../screens/profile/profile_page.dart';
 
@@ -23,28 +27,28 @@ class _MainNavigationState extends State<MainNavigation> {
   void initState() {
     super.initState();
     _currentIndex = widget.initialIndex;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      RoleService.guardRoute(
+        context,
+        allowedRoles: const [AppRole.tourist],
+      );
+    });
   }
 
   static const List<_NavTab> _tabs = [
     _NavTab(inactiveIcon: Icons.home_outlined, activeIcon: Icons.home_rounded, label: 'Home'),
+    _NavTab(inactiveIcon: Icons.route_outlined, activeIcon: Icons.route_rounded, label: 'Plan'),
     _NavTab(inactiveIcon: Icons.map_outlined, activeIcon: Icons.map_rounded, label: 'Map'),
-    _NavTab(inactiveIcon: Icons.route_outlined, activeIcon: Icons.route_rounded, label: 'Route'),
     _NavTab(inactiveIcon: Icons.favorite_border_rounded, activeIcon: Icons.favorite_rounded, label: 'Favorite'),
     _NavTab(inactiveIcon: Icons.person_outline_rounded, activeIcon: Icons.person_rounded, label: 'Profile'),
   ];
 
-  late final List<Widget> _pages = [
-    const HomePage(),
-    const WorldPage(),
-    const RoutePage(),
-    const FavoritePage(),
-    const ProfilePage(),
-  ];
+
 
   void _onTabTapped(int index) {
     if (index == _currentIndex) return;
     
-    final routes = ['/home', '/world', '/message', '/favorite', '/profile'];
+    final routes = ['/home', '/plan', '/map', '/favorite', '/profile'];
     Navigator.of(context).pushReplacementNamed(
       routes[index],
       arguments: {'isTabSwitch': true},
@@ -53,11 +57,35 @@ class _MainNavigationState extends State<MainNavigation> {
 
   @override
   Widget build(BuildContext context) {
+    final args = ModalRoute.of(context)?.settings.arguments as Map<String, dynamic>?;
+    final package = args?['package'] as String?;
+    final destination = args?['destination'] as String?; // NEW
+
+    final isLoggedIn = Supabase.instance.client.auth.currentUser != null;
+
+    final pages = [
+      const HomePage(),
+      PlanPage(package: package, preselectedDestinationName: destination), // UPDATED
+      const MapPage(),
+      isLoggedIn
+          ? const FavoritePage()
+          : const GuestRedirectView(
+              title: 'Sign In Required',
+              description: 'Sign in first to show this page and view your favorite list.',
+            ),
+      isLoggedIn
+          ? const ProfilePage()
+          : const GuestRedirectView(
+              title: 'Sign In Required',
+              description: 'Sign in first to show this page and view your profile.',
+            ),
+    ];
+
     return Scaffold(
       backgroundColor: AppPalette.white,
       body: IndexedStack(
         index: _currentIndex,
-        children: _pages,
+        children: pages,
       ),
       bottomNavigationBar: Container(
         decoration: BoxDecoration(
@@ -68,7 +96,7 @@ class _MainNavigationState extends State<MainNavigation> {
           ),
           boxShadow: [
             BoxShadow(
-              color: AppPalette.deepNavy.withOpacity(0.08),
+              color: AppPalette.deepNavy.withValues(alpha: 0.08),
               blurRadius: 24,
               offset: const Offset(0, -6),
             ),
@@ -243,3 +271,4 @@ class _PlaceholderPage extends StatelessWidget {
     );
   }
 }
+

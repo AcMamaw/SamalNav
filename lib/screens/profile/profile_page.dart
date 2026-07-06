@@ -1,7 +1,12 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../theme/palette.dart';
+import 'history_page.dart';
 
 typedef _P = AppPalette;
+
+final _supabase = Supabase.instance.client;
 
 class ProfilePage extends StatefulWidget {
   const ProfilePage({super.key});
@@ -12,27 +17,58 @@ class ProfilePage extends StatefulWidget {
 
 class _ProfilePageState extends State<ProfilePage> {
   bool _isEditing = false;
+  bool _isLoading = true;
+  bool _isSaving = false;
+  bool _isSigningOut = false;
 
   bool _obscureOldPassword = true;
   bool _obscureNewPassword = true;
   bool _obscureConfirmPassword = true;
 
   bool _is2FAEnabled = false;
-  bool _isGoogleConnected = true;
-  bool _isFacebookConnected = false;
 
-  final TextEditingController _nameCtrl = TextEditingController(text: 'Charlotte King');
-  final TextEditingController _emailCtrl = TextEditingController(text: 'charlotte@example.com');
-  final TextEditingController _usernameCtrl = TextEditingController(text: '@johnkinggraphics');
+  final TextEditingController _nameCtrl = TextEditingController();
+  final TextEditingController _emailCtrl = TextEditingController();
+  final TextEditingController _usernameCtrl = TextEditingController();
 
   final TextEditingController _oldPasswordCtrl = TextEditingController();
   final TextEditingController _newPasswordCtrl = TextEditingController();
   final TextEditingController _confirmPasswordCtrl = TextEditingController();
 
-  final TextEditingController _phoneCtrl = TextEditingController(text: '6895312');
+  final TextEditingController _phoneCtrl = TextEditingController();
+
+  StreamSubscription<AuthState>? _authSubscription;
+
+  // ── Real connected-account status, derived from Supabase identities ──
+  bool get _isGoogleConnected =>
+      _supabase.auth.currentUser?.identities
+          ?.any((i) => i.provider == 'google') ??
+      false;
+
+  bool get _isFacebookConnected =>
+      _supabase.auth.currentUser?.identities
+          ?.any((i) => i.provider == 'facebook') ??
+      false;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadProfile();
+    // Listen for auth state changes (e.g. returning from social link OAuth browser flow)
+    _authSubscription = _supabase.auth.onAuthStateChange.listen((data) async {
+      if (data.event == AuthChangeEvent.signedIn || data.event == AuthChangeEvent.userUpdated) {
+        // Refresh user details to update identity list
+        await _supabase.auth.getUser();
+      }
+      if (mounted) {
+        setState(() {});
+      }
+    });
+  }
 
   @override
   void dispose() {
+    _authSubscription?.cancel();
     _nameCtrl.dispose();
     _emailCtrl.dispose();
     _usernameCtrl.dispose();
@@ -43,10 +79,245 @@ class _ProfilePageState extends State<ProfilePage> {
     super.dispose();
   }
 
-  void _toggleEdit() {
-    setState(() {
-      _isEditing = !_isEditing;
-    });
+  // ── Supabase: Load profile from DB ────────────────────────────────
+  Future<void> _loadProfile() async {
+    setState(() => _isLoading = true);
+    try {
+      final userResponse = await _supabase.auth.getUser();
+      final user = userResponse.user;
+      if (user == null) return;
+
+      // Pre-fill email from auth
+      _emailCtrl.text = user.email ?? '';
+
+      // Load extra profile data from the profiles table
+      final data = await _supabase
+          .from('profiles')
+          .select()
+          .eq('id', user.id)
+          .maybeSingle();
+
+      if (data != null && mounted) {
+        setState(() {
+          _nameCtrl.text = data['display_name'] ?? user.email?.split('@').first ?? '';
+          _usernameCtrl.text = data['username'] ?? '';
+          String phone = data['phone'] ?? '';
+          if (phone.startsWith('+63')) {
+            phone = phone.substring(3);
+          }
+          _phoneCtrl.text = phone;
+          _is2FAEnabled = data['mfa_email_enabled'] ?? false;
+        });
+      } else {
+        // Fallback: use auth metadata
+        final meta = user.userMetadata;
+        _nameCtrl.text = meta?['display_name'] ?? user.email?.split('@').first ?? '';
+      }
+    } catch (e) {
+      _showSnack('Could not load profile: $e', isError: true);
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
+    }
+  }
+
+  // ── Supabase: Save profile edits ───────────────────────────────────
+  Future<void> _saveProfile() async {
+    setState(() => _isSaving = true);
+    try {
+      final user = _supabase.auth.currentUser;
+      if (user == null) {
+        setState(() => _isSaving = false);
+        return;
+      }
+
+      // If password fields are filled, update password
+      final oldPw = _oldPasswordCtrl.text.trim();
+      final newPw = _newPasswordCtrl.text.trim();
+      final confirmPw = _confirmPasswordCtrl.text.trim();
+
+      if (newPw.isNotEmpty) {
+        if (newPw != confirmPw) {
+          _showSnack('New passwords do not match.', isError: true);
+          setState(() => _isSaving = false);
+          return;
+        }
+        if (oldPw.isEmpty) {
+          _showSnack('Enter your old password to change it.', isError: true);
+          setState(() => _isSaving = false);
+          return;
+        }
+
+        // Re-authenticate user to verify the old password is correct
+        try {
+          await _supabase.auth.signInWithPassword(
+            email: user.email!,
+            password: oldPw,
+          );
+        } catch (e) {
+          _showSnack('Incorrect old password.', isError: true);
+          setState(() => _isSaving = false);
+          return;
+        }
+
+        // Old password verified, now update to new password
+        await _supabase.auth.updateUser(UserAttributes(password: newPw));
+        _oldPasswordCtrl.clear();
+        _newPasswordCtrl.clear();
+        _confirmPasswordCtrl.clear();
+      }
+
+      // Upsert profile row
+      await _supabase.from('profiles').upsert({
+        'id': user.id,
+        'display_name': _nameCtrl.text.trim(),
+        'username': _usernameCtrl.text.trim(),
+        'phone': _phoneCtrl.text.trim().isEmpty ? null : '+63${_phoneCtrl.text.trim()}',
+        'email': _emailCtrl.text.trim(),
+      });
+
+      _showSnack('Profile saved successfully!');
+      if (mounted) setState(() => _isEditing = false);
+    } catch (e) {
+      _showSnack('Failed to save: $e', isError: true);
+    } finally {
+      if (mounted) setState(() => _isSaving = false);
+    }
+  }
+
+  // ── Supabase: Sign out ─────────────────────────────────────────────
+  Future<void> _signOut() async {
+    setState(() => _isSigningOut = true);
+    try {
+      await _supabase.auth.signOut();
+    } catch (e) {
+      _showSnack('Failed to log out: $e', isError: true);
+      if (mounted) setState(() => _isSigningOut = false);
+      return;
+    }
+    if (mounted) {
+      Navigator.of(context).pushNamedAndRemoveUntil('/', (route) => false);
+    }
+  }
+
+  void _showSnack(String msg, {bool isError = false}) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(msg, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w600)),
+        backgroundColor: isError ? Colors.red.shade600 : _P.deepNavy,
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+        duration: const Duration(seconds: 3),
+      ),
+    );
+  }
+
+  void _toggleEdit() => setState(() => _isEditing = !_isEditing);
+
+  // ── Link / unlink a social provider ──────────────────────────────────
+  Future<void> _toggleSocial(String provider, bool connect) async {
+    try {
+      if (connect) {
+        await _supabase.auth.linkIdentity(
+          provider == 'google' ? OAuthProvider.google : OAuthProvider.facebook,
+        );
+      } else {
+        final userResponse = await _supabase.auth.getUser();
+        final user = userResponse.user;
+        if (user == null) return;
+        final identity = user.identities?.firstWhere((i) => i.provider == provider);
+        if (identity != null) {
+          await _supabase.auth.unlinkIdentity(identity);
+          // Reload user to update identities list
+          await _supabase.auth.getUser();
+        }
+      }
+      if (mounted) setState(() {});
+    } catch (e) {
+      _showSnack('Could not update $provider: $e', isError: true);
+    }
+  }
+
+  // ── Email-based Two-Factor toggle ────────────────────────────────────
+  Future<void> _toggle2FA(bool value) async {
+    final email = _emailCtrl.text.trim();
+
+    if (value) {
+      if (email.isEmpty) {
+        _showSnack('Add an email to your profile first.', isError: true);
+        return;
+      }
+      try {
+        await _supabase.auth.signInWithOtp(email: email);
+        if (!mounted) return;
+        final code = await _showOtpDialog();
+        if (code == null || code.isEmpty) return; // user cancelled
+        await _supabase.auth.verifyOTP(
+          type: OtpType.email,
+          token: code,
+          email: email,
+        );
+      } catch (e) {
+        _showSnack('Could not verify code: $e', isError: true);
+        return;
+      }
+    }
+
+    try {
+      final user = _supabase.auth.currentUser;
+      if (user == null) return;
+      await _supabase
+          .from('profiles')
+          .update({'mfa_email_enabled': value}).eq('id', user.id);
+      if (mounted) setState(() => _is2FAEnabled = value);
+      _showSnack(value
+          ? 'Two-factor authentication enabled.'
+          : 'Two-factor authentication disabled.');
+    } catch (e) {
+      _showSnack('Could not update 2FA setting: $e', isError: true);
+    }
+  }
+
+  Future<String?> _showOtpDialog() {
+    final ctrl = TextEditingController();
+    return showDialog<String>(
+      context: context,
+      barrierDismissible: false,
+      builder: (dialogContext) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+        title: const Text('Enter verification code'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              'We sent a 6-digit code to your email. Enter it below to enable Two-Factor Authentication.',
+              style: TextStyle(fontSize: 13, color: _P.inkSoft),
+            ),
+            const SizedBox(height: 16),
+            TextField(
+              controller: ctrl,
+              keyboardType: TextInputType.number,
+              autofocus: true,
+              decoration: const InputDecoration(
+                hintText: '6-digit code',
+                border: OutlineInputBorder(),
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, ctrl.text.trim()),
+            child: const Text('Confirm'),
+          ),
+        ],
+      ),
+    );
   }
 
   void _showLanguageSelector() {
@@ -197,11 +468,15 @@ class _ProfilePageState extends State<ProfilePage> {
                         ],
                       ),
                       const SizedBox(height: 18),
-                      Text(_nameCtrl.text,
-                          style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w800, color: Colors.white, letterSpacing: -0.2)),
+                      Text(
+                        _nameCtrl.text.isNotEmpty ? _nameCtrl.text : 'Loading...',
+                        style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w800, color: Colors.white, letterSpacing: -0.2),
+                      ),
                       const SizedBox(height: 4),
-                      Text('@johnkinggraphics',
-                          style: TextStyle(fontSize: 13.5, color: Colors.white.withValues(alpha: 0.6), fontWeight: FontWeight.w500)),
+                      Text(
+                        _emailCtrl.text.isNotEmpty ? _emailCtrl.text : '',
+                        style: TextStyle(fontSize: 13.5, color: Colors.white.withValues(alpha: 0.6), fontWeight: FontWeight.w500),
+                      ),
                       const SizedBox(height: 24),
                       _HoverButton(
                         text: 'Edit Profile',
@@ -217,6 +492,43 @@ class _ProfilePageState extends State<ProfilePage> {
             ),
           ),
           const SizedBox(height: 30),
+
+          // ── Route History Section ────────────────────────────────
+          _buildSectionHeader('My Activity'),
+          const SizedBox(height: 12),
+          GestureDetector(
+            onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const HistoryPage())),
+            child: Container(
+              padding: const EdgeInsets.all(18),
+              decoration: BoxDecoration(
+                gradient: const LinearGradient(colors: [_P.navy, _P.deepNavy], begin: Alignment.topLeft, end: Alignment.bottomRight),
+                borderRadius: BorderRadius.circular(20),
+                boxShadow: [BoxShadow(color: _P.deepNavy.withValues(alpha: 0.25), blurRadius: 16, offset: const Offset(0, 8))],
+              ),
+              child: Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(10),
+                    decoration: BoxDecoration(color: Colors.white.withValues(alpha: 0.15), borderRadius: BorderRadius.circular(14)),
+                    child: const Icon(Icons.history_rounded, color: Colors.white, size: 22),
+                  ),
+                  const SizedBox(width: 14),
+                  const Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text('My Route History', style: TextStyle(color: Colors.white, fontSize: 15, fontWeight: FontWeight.w800)),
+                        SizedBox(height: 3),
+                        Text('View past itineraries & day tours', style: TextStyle(color: Colors.white70, fontSize: 12, fontWeight: FontWeight.w500)),
+                      ],
+                    ),
+                  ),
+                  const Icon(Icons.arrow_forward_ios_rounded, color: Colors.white70, size: 16),
+                ],
+              ),
+            ),
+          ),
+          const SizedBox(height: 24),
 
           // ── Menu section ─────────────────────────────────────────
           _buildSectionHeader('Preferences'),
@@ -247,9 +559,7 @@ class _ProfilePageState extends State<ProfilePage> {
               textColor: Colors.red.shade600,
               hoverTextColor: Colors.white,
               borderColor: Colors.red.shade600,
-              onTap: () {
-                // Log out logic
-              },
+              onTap: _isSigningOut ? () {} : _signOut,
             ),
           ),
         ],
@@ -286,15 +596,17 @@ class _ProfilePageState extends State<ProfilePage> {
               const Text('Edit Profile',
                   style: TextStyle(fontSize: 20, fontWeight: FontWeight.w800, color: _P.deepNavy, letterSpacing: -0.3)),
               GestureDetector(
-                onTap: _toggleEdit,
+                onTap: _isSaving ? null : _saveProfile,
                 child: Container(
                   padding: const EdgeInsets.all(10),
                   decoration: BoxDecoration(
-                    color: _P.navy,
+                    color: _isSaving ? Colors.grey : _P.navy,
                     shape: BoxShape.circle,
                     boxShadow: [BoxShadow(color: _P.deepNavy.withValues(alpha: 0.15), blurRadius: 12, offset: const Offset(0, 4))],
                   ),
-                  child: const Icon(Icons.check_rounded, color: Colors.white, size: 20),
+                  child: _isSaving
+                      ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
+                      : const Icon(Icons.check_rounded, color: Colors.white, size: 20),
                 ),
               ),
             ],
@@ -331,17 +643,34 @@ class _ProfilePageState extends State<ProfilePage> {
           // ── Personal Details ─────────────────────────────────────
           _buildSectionHeader('Personal Details'),
           const SizedBox(height: 14),
-          _buildEditField('Name', _nameCtrl, Icons.person_rounded),
+          _buildEditField('Full Name', _nameCtrl, Icons.person_rounded),
           const SizedBox(height: 14),
-          _buildEditField('E mail address', _emailCtrl, Icons.email_rounded),
+          _buildEditField('Email address', _emailCtrl, Icons.email_rounded),
           const SizedBox(height: 14),
-          _buildEditField('User name', _usernameCtrl, Icons.alternate_email_rounded),
+          _buildEditField('Username', _usernameCtrl, Icons.alternate_email_rounded),
           const SizedBox(height: 14),
           _buildPhoneField(),
           const SizedBox(height: 28),
 
           // ── Security ─────────────────────────────────────────────
-          _buildSectionHeader('Security'),
+          _buildSectionHeader('Change Password'),
+          const SizedBox(height: 8),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+            decoration: BoxDecoration(color: _P.iceBlue, borderRadius: BorderRadius.circular(14)),
+            child: const Row(
+              children: [
+                Icon(Icons.info_outline_rounded, color: _P.blue, size: 16),
+                SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    'Leave password fields empty to keep your current password.',
+                    style: TextStyle(color: _P.blue, fontSize: 12, fontWeight: FontWeight.w500),
+                  ),
+                ),
+              ],
+            ),
+          ),
           const SizedBox(height: 14),
           _buildPasswordField('Old Password', _oldPasswordCtrl, _obscureOldPassword,
               (val) => setState(() => _obscureOldPassword = val)),
@@ -358,7 +687,7 @@ class _ProfilePageState extends State<ProfilePage> {
             'Require a verification code on login',
             Icons.security_rounded,
             _is2FAEnabled,
-            (val) => setState(() => _is2FAEnabled = val),
+            _toggle2FA,
           ),
           const SizedBox(height: 28),
 
@@ -366,10 +695,10 @@ class _ProfilePageState extends State<ProfilePage> {
           _buildSectionHeader('Connected Accounts'),
           const SizedBox(height: 14),
           _buildSocialToggle('Google', Icons.g_mobiledata_rounded, _isGoogleConnected,
-              (val) => setState(() => _isGoogleConnected = val)),
+              (val) => _toggleSocial('google', val)),
           const SizedBox(height: 12),
           _buildSocialToggle('Facebook', Icons.facebook_rounded, _isFacebookConnected,
-              (val) => setState(() => _isFacebookConnected = val)),
+              (val) => _toggleSocial('facebook', val)),
         ],
       ),
     );
@@ -543,6 +872,7 @@ class _ProfilePageState extends State<ProfilePage> {
     );
   }
 
+  // ── Aligned label/status row for Google & Facebook ──────────────────
   Widget _buildSocialToggle(String title, IconData icon, bool isConnected, Function(bool) onToggle) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
@@ -559,12 +889,39 @@ class _ProfilePageState extends State<ProfilePage> {
             child: Icon(icon, color: _P.blue, size: 22),
           ),
           const SizedBox(width: 14),
-          Expanded(child: Text(title, style: const TextStyle(fontWeight: FontWeight.w700, color: _P.deepNavy, fontSize: 15))),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(title, style: const TextStyle(fontWeight: FontWeight.w700, color: _P.deepNavy, fontSize: 15)),
+                const SizedBox(height: 2),
+                Text(
+                  isConnected ? 'Connected' : 'Not connected',
+                  style: TextStyle(
+                    color: isConnected ? Colors.green.shade600 : _P.inkSoft,
+                    fontSize: 12,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+              ],
+            ),
+          ),
           GestureDetector(
             onTap: () => onToggle(!isConnected),
-            child: Text(
-              isConnected ? 'Disconnect' : 'Connect',
-              style: TextStyle(color: isConnected ? Colors.redAccent : _P.blue, fontWeight: FontWeight.w700, fontSize: 13),
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+              decoration: BoxDecoration(
+                color: isConnected ? Colors.red.shade50 : _P.iceBlue,
+                borderRadius: BorderRadius.circular(50),
+              ),
+              child: Text(
+                isConnected ? 'Disconnect' : 'Connect',
+                style: TextStyle(
+                  color: isConnected ? Colors.redAccent : _P.blue,
+                  fontWeight: FontWeight.w700,
+                  fontSize: 13,
+                ),
+              ),
             ),
           ),
         ],
@@ -574,6 +931,38 @@ class _ProfilePageState extends State<ProfilePage> {
 
   @override
   Widget build(BuildContext context) {
+    if (_isLoading) {
+      return const Scaffold(
+        backgroundColor: Colors.white,
+        body: Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              CircularProgressIndicator(color: _P.blue, strokeWidth: 2.5),
+              SizedBox(height: 16),
+              Text('Loading profile...', style: TextStyle(color: _P.inkSoft, fontWeight: FontWeight.w600)),
+            ],
+          ),
+        ),
+      );
+    }
+
+    if (_isSigningOut) {
+      return const Scaffold(
+        backgroundColor: Colors.white,
+        body: Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              CircularProgressIndicator(color: _P.blue, strokeWidth: 2.5),
+              SizedBox(height: 16),
+              Text('Logging out...', style: TextStyle(color: _P.inkSoft, fontWeight: FontWeight.w600)),
+            ],
+          ),
+        ),
+      );
+    }
+
     return Scaffold(
       backgroundColor: Colors.grey.shade50,
       body: SafeArea(

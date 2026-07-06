@@ -1,4 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
+import '../../models/app_role.dart';
+import '../../services/role_service.dart';
 
 class RegisterPage extends StatefulWidget {
   const RegisterPage({super.key});
@@ -49,39 +52,65 @@ class _RegisterPageState extends State<RegisterPage>
     super.dispose();
   }
 
+  // ── Shared snackbar helper (matches Login page styling) ─────────────
+  void _showSnack(String msg, {bool isError = false}) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          msg,
+          style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w600),
+        ),
+        backgroundColor: isError ? Colors.redAccent : Colors.green.shade600,
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+        duration: const Duration(seconds: 3),
+      ),
+    );
+  }
+
   void _handleRegister() async {
     if (!_agreeToTerms) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: const Text('Please agree to the Terms & Conditions'),
-          backgroundColor: Colors.redAccent.withOpacity(0.9),
-          behavior: SnackBarBehavior.floating,
-          shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(10)),
-        ),
-      );
+      _showSnack('Please agree to the Terms & Conditions', isError: true);
       return;
     }
     if (_formKey.currentState!.validate()) {
       setState(() => _isLoading = true);
-      // TODO: Add your registration logic / API call here
-      await Future.delayed(const Duration(seconds: 2));
-      setState(() => _isLoading = false);
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: const Text('Account created! Please sign in.'),
-            backgroundColor: Colors.green.withOpacity(0.9),
-            behavior: SnackBarBehavior.floating,
-            shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(10)),
-          ),
+      try {
+        final response = await Supabase.instance.client.auth.signUp(
+          email: _emailController.text.trim(),
+          password: _passwordController.text.trim(),
+          data: {
+            'display_name': _nameController.text.trim(),
+            'role': AppRole.tourist.value,
+          },
         );
-        Navigator.pushReplacementNamed(context, '/login');
+
+        // Create profile row with tourist role when session is available
+        final user = response.user;
+        if (user != null) {
+          await RoleService.ensureTouristProfile(
+            userId: user.id,
+            email: _emailController.text.trim(),
+            displayName: _nameController.text.trim(),
+          );
+        }
+
+        if (mounted) {
+          _showSnack('Tourist account created! Please sign in.');
+          Navigator.pushReplacementNamed(context, '/login');
+        }
+      } on AuthException catch (error) {
+        _showSnack(error.message, isError: true);
+      } catch (error) {
+        _showSnack('An error occurred: $error', isError: true);
+      } finally {
+        if (mounted) {
+          setState(() => _isLoading = false);
+        }
       }
     }
   }
-
 
   @override
   Widget build(BuildContext context) {
@@ -116,9 +145,9 @@ class _RegisterPageState extends State<RegisterPage>
             decoration: BoxDecoration(
               gradient: LinearGradient(
                 colors: [
-                  const Color(0xFF061020).withOpacity(0.75),
-                  const Color(0xFF061020).withOpacity(0.88),
-                  const Color(0xFF061020).withOpacity(0.96),
+                  const Color(0xFF061020).withValues(alpha: 0.75),
+                  const Color(0xFF061020).withValues(alpha: 0.88),
+                  const Color(0xFF061020).withValues(alpha: 0.96),
                 ],
                 begin: Alignment.topCenter,
                 end: Alignment.bottomCenter,
@@ -139,7 +168,7 @@ class _RegisterPageState extends State<RegisterPage>
                   width: 50,
                   height: 5,
                   decoration: BoxDecoration(
-                    color: Colors.white.withOpacity(0.4),
+                    color: Colors.white.withValues(alpha: 0.4),
                     borderRadius: BorderRadius.circular(10),
                   ),
                 ),
@@ -168,10 +197,10 @@ class _RegisterPageState extends State<RegisterPage>
                         Container(
                           padding: const EdgeInsets.all(22),
                           decoration: BoxDecoration(
-                            color: Colors.white.withOpacity(0.12),
+                            color: Colors.white.withValues(alpha: 0.12),
                             shape: BoxShape.circle,
                             border: Border.all(
-                                color: Colors.white.withOpacity(0.3),
+                                color: Colors.white.withValues(alpha: 0.3),
                                 width: 2),
                           ),
                           child: const Icon(Icons.person_add_rounded,
@@ -200,10 +229,10 @@ class _RegisterPageState extends State<RegisterPage>
                         Container(
                           padding: const EdgeInsets.all(24),
                           decoration: BoxDecoration(
-                            color: Colors.white.withOpacity(0.08),
+                            color: Colors.white.withValues(alpha: 0.08),
                             borderRadius: BorderRadius.circular(24),
                             border: Border.all(
-                                color: Colors.white.withOpacity(0.18),
+                                color: Colors.white.withValues(alpha: 0.18),
                                 width: 1.5),
                           ),
                           child: Form(
@@ -392,6 +421,69 @@ class _RegisterPageState extends State<RegisterPage>
 
                         const SizedBox(height: 28),
 
+                        // ── Social Login Options (matches Login page) ─
+                        Row(
+                          children: [
+                            Expanded(child: Divider(color: Colors.white.withValues(alpha: 0.3))),
+                            const Padding(
+                              padding: EdgeInsets.symmetric(horizontal: 16),
+                              child: Text(
+                                'Or continue with',
+                                style: TextStyle(color: Colors.white70, fontSize: 13),
+                              ),
+                            ),
+                            Expanded(child: Divider(color: Colors.white.withValues(alpha: 0.3))),
+                          ],
+                        ),
+                        const SizedBox(height: 24),
+
+                        Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 24),
+                          child: Row(
+                            children: [
+                              // Google Button
+                              Expanded(
+                                child: _socialButton(
+                                  label: 'Google',
+                                  iconWidget: Container(
+                                    alignment: Alignment.center,
+                                    width: 24,
+                                    height: 24,
+                                    decoration: const BoxDecoration(
+                                      color: Colors.white,
+                                      shape: BoxShape.circle,
+                                    ),
+                                    child: const Text(
+                                      'G',
+                                      style: TextStyle(
+                                        color: Colors.black87,
+                                        fontWeight: FontWeight.bold,
+                                        fontSize: 16,
+                                      ),
+                                    ),
+                                  ),
+                                  onPressed: () {
+                                    _showSnack('Google sign-up coming soon!');
+                                  },
+                                ),
+                              ),
+                              const SizedBox(width: 16),
+                              // Facebook Button
+                              Expanded(
+                                child: _socialButton(
+                                  label: 'Facebook',
+                                  iconWidget: const Icon(Icons.facebook, color: Color(0xFF1877F2), size: 28),
+                                  onPressed: () {
+                                    _showSnack('Facebook sign-up coming soon!');
+                                  },
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+
+                        const SizedBox(height: 36),
+
                         // Already have account
                         Row(
                           mainAxisAlignment: MainAxisAlignment.center,
@@ -436,11 +528,11 @@ class _RegisterPageState extends State<RegisterPage>
       labelStyle: const TextStyle(color: Colors.white60),
       prefixIcon: Icon(icon, color: Colors.white54),
       filled: true,
-      fillColor: Colors.white.withOpacity(0.08),
+      fillColor: Colors.white.withValues(alpha: 0.08),
       enabledBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(14),
         borderSide:
-            BorderSide(color: Colors.white.withOpacity(0.22), width: 1.2),
+            BorderSide(color: Colors.white.withValues(alpha: 0.22), width: 1.2),
       ),
       focusedBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(14),
@@ -457,6 +549,33 @@ class _RegisterPageState extends State<RegisterPage>
             const BorderSide(color: Colors.redAccent, width: 1.8),
       ),
       errorStyle: const TextStyle(color: Colors.redAccent),
+    );
+  }
+
+  Widget _socialButton(
+      {required String label, required Widget iconWidget, required VoidCallback onPressed}) {
+    return InkWell(
+      onTap: onPressed,
+      borderRadius: BorderRadius.circular(12),
+      child: Container(
+        padding: const EdgeInsets.symmetric(vertical: 12),
+        decoration: BoxDecoration(
+          color: Colors.white.withValues(alpha: 0.1),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: Colors.white.withValues(alpha: 0.2)),
+        ),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            iconWidget,
+            const SizedBox(width: 8),
+            Text(
+              label,
+              style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }

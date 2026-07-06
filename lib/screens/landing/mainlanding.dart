@@ -123,10 +123,10 @@ class _MainLandingPageState extends State<MainLandingPage>
                         Container(
                           padding: const EdgeInsets.all(7),
                           decoration: BoxDecoration(
-                            color: Colors.white.withOpacity(0.15),
+                            color: Colors.white.withValues(alpha: 0.15),
                             borderRadius: BorderRadius.circular(10),
                             border: Border.all(
-                                color: Colors.white.withOpacity(0.3),
+                                color: Colors.white.withValues(alpha: 0.3),
                                 width: 1),
                           ),
                           child: const Icon(Icons.navigation_rounded,
@@ -152,10 +152,10 @@ class _MainLandingPageState extends State<MainLandingPage>
                       child: Container(
                         padding: const EdgeInsets.all(10),
                         decoration: BoxDecoration(
-                          color: Colors.white.withOpacity(0.18),
+                          color: Colors.white.withValues(alpha: 0.18),
                           shape: BoxShape.circle,
                           border: Border.all(
-                              color: Colors.white.withOpacity(0.4),
+                              color: Colors.white.withValues(alpha: 0.4),
                               width: 1.5),
                         ),
                         child: const Icon(Icons.person_rounded,
@@ -240,33 +240,33 @@ class _MainLandingPageState extends State<MainLandingPage>
                             ),
                           ),
                         ),
-                        const SizedBox(height: 20),
+                        const SizedBox(height: 14),
 
-                        // Sign In link
-                        Center(
-                          child: Row(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              const Text(
-                                'Already have an account?  ',
-                                style: TextStyle(
-                                    color: Colors.white70, fontSize: 14),
+                        // Login Account button
+                        SizedBox(
+                          width: double.infinity,
+                          child: OutlinedButton(
+                            onPressed: () =>
+                                Navigator.pushNamed(context, '/login'),
+                            style: OutlinedButton.styleFrom(
+                              foregroundColor: Colors.white,
+                              side: BorderSide(
+                                  color: Colors.white.withValues(alpha: 0.6),
+                                  width: 1.5),
+                              padding:
+                                  const EdgeInsets.symmetric(vertical: 18),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(50),
                               ),
-                              GestureDetector(
-                                onTap: () =>
-                                    Navigator.pushNamed(context, '/login'),
-                                child: const Text(
-                                  'Sign In',
-                                  style: TextStyle(
-                                    color: Colors.white,
-                                    fontSize: 14,
-                                    fontWeight: FontWeight.bold,
-                                    decoration: TextDecoration.underline,
-                                    decorationColor: Colors.white,
-                                  ),
-                                ),
+                            ),
+                            child: const Text(
+                              'Login Account',
+                              style: TextStyle(
+                                fontSize: 17,
+                                fontWeight: FontWeight.bold,
+                                letterSpacing: 0.5,
                               ),
-                            ],
+                            ),
                           ),
                         ),
                       ],
@@ -311,7 +311,7 @@ class _MainLandingPageState extends State<MainLandingPage>
         // Dark Overlay
         Positioned.fill(
           child: Container(
-            color: const Color(0xFF0D1B2A).withOpacity(0.85),
+            color: const Color(0xFF0D1B2A).withValues(alpha: 0.85),
           ),
         ),
         // Content
@@ -325,7 +325,7 @@ class _MainLandingPageState extends State<MainLandingPage>
                 'About SamalNav',
                 textAlign: TextAlign.center,
                 style: TextStyle(
-                  color: Colors.white.withOpacity(0.9),
+                  color: Colors.white.withValues(alpha: 0.9),
                   fontSize: 32,
                   fontWeight: FontWeight.bold,
                   letterSpacing: 1.2,
@@ -381,9 +381,9 @@ class _MainLandingPageState extends State<MainLandingPage>
     return Container(
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: Colors.white.withOpacity(0.1),
+        color: Colors.white.withValues(alpha: 0.1),
         shape: BoxShape.circle,
-        border: Border.all(color: Colors.white.withOpacity(0.2)),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.2)),
       ),
       child: Icon(icon, color: Colors.white, size: 24),
     );
@@ -405,8 +405,8 @@ class _MainLandingPageState extends State<MainLandingPage>
             decoration: BoxDecoration(
               gradient: LinearGradient(
                 colors: [
-                  const Color(0xFF0D1B2A).withOpacity(0.85),
-                  const Color(0xFF061020).withOpacity(0.95),
+                  const Color(0xFF0D1B2A).withValues(alpha: 0.85),
+                  const Color(0xFF061020).withValues(alpha: 0.95),
                 ],
                 begin: Alignment.topCenter,
                 end: Alignment.bottomCenter,
@@ -425,7 +425,7 @@ class _MainLandingPageState extends State<MainLandingPage>
                 'Our Connections',
                 textAlign: TextAlign.center,
                 style: TextStyle(
-                  color: Colors.white.withOpacity(0.9),
+                  color: Colors.white.withValues(alpha: 0.9),
                   fontSize: 32,
                   fontWeight: FontWeight.bold,
                   letterSpacing: 1.2,
@@ -486,14 +486,14 @@ class _MainLandingPageState extends State<MainLandingPage>
           decoration: BoxDecoration(
             gradient: LinearGradient(
               colors: [
-                Colors.white.withOpacity(0.35),
-                Colors.white.withOpacity(0.05),
+                Colors.white.withValues(alpha: 0.35),
+                Colors.white.withValues(alpha: 0.05),
               ],
               begin: Alignment.topLeft,
               end: Alignment.bottomRight,
             ),
             borderRadius: BorderRadius.circular(24),
-            border: Border.all(color: Colors.white.withOpacity(0.4), width: 1.5),
+            border: Border.all(color: Colors.white.withValues(alpha: 0.4), width: 1.5),
           ),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -506,13 +506,13 @@ class _MainLandingPageState extends State<MainLandingPage>
                   Container(
                     padding: const EdgeInsets.all(12),
                     decoration: BoxDecoration(
-                      color: Colors.white.withOpacity(0.1),
+                      color: Colors.white.withValues(alpha: 0.1),
                       shape: BoxShape.circle,
-                      border: Border.all(color: Colors.white.withOpacity(0.2)),
+                      border: Border.all(color: Colors.white.withValues(alpha: 0.2)),
                     ),
                     child: Icon(icon, color: Colors.white, size: 24),
                   ),
-                  Icon(Icons.arrow_outward_rounded, color: Colors.white.withOpacity(0.5), size: 18),
+                  Icon(Icons.arrow_outward_rounded, color: Colors.white.withValues(alpha: 0.5), size: 18),
                 ],
               ),
               const SizedBox(height: 16),
@@ -524,7 +524,7 @@ class _MainLandingPageState extends State<MainLandingPage>
               const SizedBox(height: 6),
               Text(
                 subtitle,
-                style: TextStyle(color: Colors.white.withOpacity(0.7), fontSize: 12, height: 1.3),
+                style: TextStyle(color: Colors.white.withValues(alpha: 0.7), fontSize: 12, height: 1.3),
               ),
               const Spacer(), // Pushes the pill to the very bottom
               // Bottom pill
@@ -533,7 +533,7 @@ class _MainLandingPageState extends State<MainLandingPage>
                 child: Container(
                   padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                   decoration: BoxDecoration(
-                    color: Colors.white.withOpacity(0.15),
+                    color: Colors.white.withValues(alpha: 0.15),
                     borderRadius: BorderRadius.circular(20),
                   ),
                   child: Row(
@@ -541,7 +541,7 @@ class _MainLandingPageState extends State<MainLandingPage>
                     children: [
                       const Text('Explore', style: TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.bold)),
                       const SizedBox(width: 4),
-                      Icon(Icons.arrow_forward_ios_rounded, color: Colors.white.withOpacity(0.8), size: 8),
+                      Icon(Icons.arrow_forward_ios_rounded, color: Colors.white.withValues(alpha: 0.8), size: 8),
                     ],
                   ),
                 ),
@@ -608,8 +608,20 @@ class _MainLandingPageState extends State<MainLandingPage>
               ),
             ],
           ),
+
+          // ── NEW: Management / Staff sign-in link ────────────────────
+          const SizedBox(height: 20),
+          TextButton.icon(
+            onPressed: () => Navigator.pushNamed(context, '/management-login'),
+            icon: const Icon(Icons.storefront_rounded, size: 16, color: Colors.white54),
+            label: const Text(
+              'Establishment or Admin? Management Sign In',
+              style: TextStyle(color: Colors.white54, fontSize: 12.5, fontWeight: FontWeight.w600),
+            ),
+          ),
+
           const SizedBox(height: 30),
-          Divider(color: Colors.white.withOpacity(0.1)),
+          Divider(color: Colors.white.withValues(alpha: 0.1)),
           const SizedBox(height: 20),
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,

@@ -29,10 +29,24 @@
   <!-- Favicon -->
   <link rel="icon" type="image/png" href="favicon.png"/>
 
-  <title>samal_nav</title>
+  <title>Samal Nav</title>
   <link rel="manifest" href="manifest.json">
+
+  <!-- Material Icons font (fixes broken icons on Flutter web) -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
 </head>
 <body>
+  <!-- Preload Material Icons so they render on first paint -->
+  <style>
+    @font-face {
+      font-family: 'MaterialIcons';
+      font-style: normal;
+      font-weight: 400;
+      src: url(assets/fonts/MaterialIcons-Regular.otf) format('opentype');
+    }
+  </style>
   <script src="flutter_bootstrap.js" async></script>
 </body>
 </html>
