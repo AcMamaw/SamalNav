@@ -5,42 +5,10 @@ import '../../state/app_state.dart';
 import 'package:latlong2/latlong.dart';
 import 'plan_results_page.dart';
 import '../../models/review.dart';
+import '../../models/destination_record.dart';
+import '../../services/destination_service.dart';
 
 typedef _P = AppPalette;
-
-// ═══════════════════════════════════════════════════════════════════
-//  SAMAL ISLAND DESTINATIONS (shared data)
-// ═══════════════════════════════════════════════════════════════════
-
-const _samalDestinations = <Destination>[
-  Destination(name: 'Kaputian Beach', location: 'Kaputian, Samal', lat: 6.9644, lng: 125.7235, visitHours: 1.5, category: 'Beach'),
-  Destination(name: 'Pearl Farm Resort', location: 'Kaputian, Samal', lat: 7.0050, lng: 125.7271, visitHours: 3.0, category: 'Resort'),
-  Destination(name: 'Hagimit Falls', location: 'Penaplata, Samal', lat: 7.0666, lng: 125.7230, visitHours: 1.5, category: 'Falls'),
-  Destination(name: 'Maxima Aquafun', location: 'Penaplata, Samal', lat: 7.0425, lng: 125.7275, visitHours: 2.0, category: 'Resort'),
-  Destination(name: 'Monfort Bat Cave', location: 'Babak, Samal', lat: 7.1260, lng: 125.7140, visitHours: 1.0, category: 'Historical'),
-  Destination(name: 'Talikud Island', location: 'Kaputian District', lat: 6.9322, lng: 125.6987, visitHours: 3.0, category: 'Island'),
-  Destination(name: 'Vanishing Island', location: 'Babak District', lat: 7.0700, lng: 125.7100, visitHours: 2.0, category: 'Beach'),
-  Destination(name: 'Mt. Puting Bato', location: 'Bali-Bali, Samal', lat: 7.0656, lng: 125.7681, visitHours: 2.5, category: 'Mountain'),
-  Destination(name: 'Secdea Beach Resort', location: 'Babak, Samal', lat: 7.1772, lng: 125.7264, visitHours: 2.0, category: 'Beach'),
-  Destination(name: 'Ligid Island Cave', location: 'Penaplata, Samal', lat: 7.1850, lng: 125.7550, visitHours: 1.0, category: 'Historical'),
-  Destination(name: 'Tagbaobo Falls', location: 'Tagbaobo, Samal', lat: 7.0054, lng: 125.7814, visitHours: 1.5, category: 'Falls'),
-];
-
-// ── Cosmetic-only placeholder info (rating + blurb), keyed by index.
-const _placeholderRatings = <double>[4.8, 4.9, 4.7, 4.6, 4.5, 4.8, 4.7, 4.6, 4.8, 4.4, 4.5];
-const _placeholderBlurbs = <String>[
-  'A wide stretch of pale sand facing the Davao Gulf, calm enough for swimming most of the year.',
-  'A long-running pearl farm turned resort, with cabanas built out over clear water.',
-  'A set of cascading freshwater pools a short walk from the road, popular for a midday dip.',
-  'A water park with slides and pools built for a full-day family visit.',
-  'Home to one of the largest colonies of fruit bats in the world, viewable up close.',
-  'A quieter island off Kaputian with thinner crowds and good snorkeling reefs.',
-  'A sandbar that shrinks and grows with the tide, walkable to at low water.',
-  'A modest peak with a clear view back over the channel toward Davao City.',
-  'A beach resort with simple cottages, good for an unhurried overnight stay.',
-  'A challenging underwater dive site known for its beautiful rock formations and marine life.',
-  'A scenic waterfall near Tagbaobo village, accessible via a short nature hike.',
-];
 
 // ═══════════════════════════════════════════════════════════════════
 //  ROUTE PAGE
@@ -56,6 +24,11 @@ class PlanPage extends StatefulWidget {
 }
 
 class _PlanPageState extends State<PlanPage> with TickerProviderStateMixin {
+  // ── Destinations State ───────────────────────────────────────────
+  List<DestinationRecord> _records = [];
+  List<Destination> _samalDestinations = [];
+  bool _isLoadingDestinations = true;
+
   // ── State ────────────────────────────────────────────────────────
   bool _isDayTour = true; // true = Day Escape, false = Itinerary Escape
   DateTime _selectedDate = DateTime.now();
@@ -93,6 +66,37 @@ class _PlanPageState extends State<PlanPage> with TickerProviderStateMixin {
       duration: const Duration(milliseconds: 700),
     )..forward();
 
+    _loadDestinations();
+  }
+
+  Future<void> _loadDestinations() async {
+    try {
+      final records = await DestinationService.getAll();
+      if (!mounted) return;
+
+      setState(() {
+        _records = records;
+        _samalDestinations = records.map((r) => Destination(
+          name: r.name,
+          location: r.location,
+          lat: r.lat,
+          lng: r.lng,
+          visitHours: r.visitHours,
+          category: r.category,
+        )).toList();
+        _isLoadingDestinations = false;
+
+        // Apply package or preselected destination once loaded
+        _applyInitialSelections();
+      });
+    } catch (e) {
+      if (mounted) {
+        setState(() => _isLoadingDestinations = false);
+      }
+    }
+  }
+
+  void _applyInitialSelections() {
     // Setup initial dates & destinations if navigating from a package card
     if (widget.package != null) {
       if (widget.package == 'Island Hopping, 3 Days') {
@@ -100,25 +104,37 @@ class _PlanPageState extends State<PlanPage> with TickerProviderStateMixin {
         _selectedDate = DateTime.now();
         _endDate = DateTime.now().add(const Duration(days: 2));
         _syncDayBuckets();
+        final kapIdx = _samalDestinations.indexWhere((d) => d.name.contains('Kaputian'));
+        final talikudIdx = _samalDestinations.indexWhere((d) => d.name.contains('Talikud'));
+        final vanishIdx = _samalDestinations.indexWhere((d) => d.name.contains('Vanishing'));
+        final pearlIdx = _samalDestinations.indexWhere((d) => d.name.contains('Pearl Farm'));
+
         if (_dayDestinations.length >= 3) {
-          _dayDestinations[0] = {0, 5}; // Kaputian Beach, Talikud Island
-          _dayDestinations[1] = {6};    // Vanishing Island
-          _dayDestinations[2] = {1};    // Pearl Farm Resort
+          if (kapIdx != -1) _dayDestinations[0].add(kapIdx);
+          if (talikudIdx != -1) _dayDestinations[0].add(talikudIdx);
+          if (vanishIdx != -1) _dayDestinations[1].add(vanishIdx);
+          if (pearlIdx != -1) _dayDestinations[2].add(pearlIdx);
         }
       } else if (widget.package == 'Forest Trek & Falls') {
         _isDayTour = true;
         _selectedDate = DateTime.now();
         _endDate = DateTime.now();
-        _selectedDestinations.addAll({2, 3, 9}); // Hagimit Falls, Maxima Aquafun, Ligid Island Cave
+        final hagimitIdx = _samalDestinations.indexWhere((d) => d.name.contains('Hagimit'));
+        final maximaIdx = _samalDestinations.indexWhere((d) => d.name.contains('Maxima'));
+        final ligidIdx = _samalDestinations.indexWhere((d) => d.name.contains('Ligid'));
+        if (hagimitIdx != -1) _selectedDestinations.add(hagimitIdx);
+        if (maximaIdx != -1) _selectedDestinations.add(maximaIdx);
+        if (ligidIdx != -1) _selectedDestinations.add(ligidIdx);
       } else if (widget.package == 'Sunset Mountain Tour') {
         _isDayTour = true;
         _selectedDate = DateTime.now();
         _endDate = DateTime.now();
-        _selectedDestinations.add(7); // Mt. Puting Bato
+        final batoIdx = _samalDestinations.indexWhere((d) => d.name.contains('Puting Bato'));
+        if (batoIdx != -1) _selectedDestinations.add(batoIdx);
       }
     }
 
-    // NEW — arriving from a place's "Add to Plan" button
+    // Arriving from a place's "Add to Plan" button
     if (widget.preselectedDestinationName != null) {
       _isDayTour = true;
       _selectedDate = DateTime.now();
@@ -345,16 +361,23 @@ class _PlanPageState extends State<PlanPage> with TickerProviderStateMixin {
 
   // ── Detail sheet ────────────────────────────────────────────────
   void _openDetailSheet(int destIndex, {required bool isSelected, required VoidCallback onToggle}) {
+    final dest = _samalDestinations[destIndex];
+    final record = destIndex < _records.length ? _records[destIndex] : null;
+    final rating = record?.rating ?? 4.5;
+    final blurb = (record?.description != null && record!.description!.isNotEmpty)
+        ? record.description!
+        : 'A beautiful and verified destination in Samal Island.';
+
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
       builder: (ctx) => _DestinationDetailSheet(
-        destination: _samalDestinations[destIndex],
-        rating: _placeholderRatings[destIndex],
-        blurb: _placeholderBlurbs[destIndex],
-        gradient: _catGradient(_samalDestinations[destIndex].category),
-        icon: _catIcon(_samalDestinations[destIndex].category),
+        destination: dest,
+        rating: rating,
+        blurb: blurb,
+        gradient: _catGradient(dest.category),
+        icon: _catIcon(dest.category),
         isSelected: isSelected,
         onToggleSelect: () {
           onToggle();
@@ -885,8 +908,12 @@ class _PlanPageState extends State<PlanPage> with TickerProviderStateMixin {
       return Padding(
         padding: const EdgeInsets.symmetric(vertical: 28),
         child: Center(
-          child: Text('No spots match "$query"',
-              style: const TextStyle(color: _P.inkSoft, fontSize: 13, fontWeight: FontWeight.w500)),
+          child: Text(
+            _isLoadingDestinations
+                ? 'Loading tourist spots across Samal Island…'
+                : 'No spots match "$query"',
+            style: const TextStyle(color: _P.inkSoft, fontSize: 13, fontWeight: FontWeight.w500),
+          ),
         ),
       );
     }
@@ -2311,8 +2338,9 @@ class _TappableState extends State<_Tappable> {
   }
 }
 
-// ── Helper to retrieve Unsplash photo URLs for destinations ──
+// ── Helper to retrieve photo URLs for destinations ──
 String _getDestinationImageUrl(String name) {
+  // Synchronous static fallback map for instant UI
   switch (name) {
     case 'Kaputian Beach':
       return 'https://images.unsplash.com/photo-1507525428034-b723cf961d3e?auto=format&fit=crop&w=400&q=80';
@@ -2323,6 +2351,7 @@ String _getDestinationImageUrl(String name) {
     case 'Maxima Aquafun':
       return 'https://images.unsplash.com/photo-1538964173425-93884d739596?auto=format&fit=crop&w=400&q=80';
     case 'Monfort Bat Cave':
+    case 'Monfort Bat Sanctuary':
       return 'https://images.unsplash.com/photo-1507163546605-a84d8ff1a3bb?auto=format&fit=crop&w=400&q=80';
     case 'Talikud Island':
       return 'https://images.unsplash.com/photo-1505118380757-91f5f5632de0?auto=format&fit=crop&w=400&q=80';
@@ -2336,6 +2365,16 @@ String _getDestinationImageUrl(String name) {
       return 'https://images.unsplash.com/photo-1510414842594-a61c69b5ae57?auto=format&fit=crop&w=400&q=80';
     case 'Tagbaobo Falls':
       return 'https://images.unsplash.com/photo-1559494007-9f5847c49d94?auto=format&fit=crop&w=400&q=80';
+    case 'Cavanico Bella Beach Resort':
+      return 'https://images.unsplash.com/photo-1566073771259-6a8506099945?auto=format&fit=crop&w=400&q=80';
+    case 'Club Samal Resort':
+      return 'https://images.unsplash.com/photo-1544735716-392fe2489ffa?auto=format&fit=crop&w=400&q=80';
+    case "Chema's by the Sea":
+      return 'https://images.unsplash.com/photo-1506929562872-bb421503ef21?auto=format&fit=crop&w=400&q=80';
+    case 'Hof Gorei Beach Resort':
+      return 'https://images.unsplash.com/photo-1566073771259-6a8506099945?auto=format&fit=crop&w=400&q=80';
+    case 'Coral Garden':
+      return 'https://images.unsplash.com/photo-1546026423-cc4642628d2b?auto=format&fit=crop&w=400&q=80';
     default:
       return 'https://images.unsplash.com/photo-1506929562872-bb421503ef21?auto=format&fit=crop&w=400&q=80';
   }

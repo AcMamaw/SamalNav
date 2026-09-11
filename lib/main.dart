@@ -2,13 +2,13 @@ import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'config/routes.dart';
 import 'config/supabase_config.dart';
-import 'screens/landing/mainlanding.dart';
-import 'screens/auth/login_page.dart';
-import 'screens/auth/register_page.dart';
-import 'screens/auth/management_login_page.dart'; // NEW
-import 'screens/establishment/establishment_dashboard.dart';
-import 'screens/admin/administrator_dashboard.dart';
-import 'screens/admin/super_admin_dashboard.dart';
+import 'screens/auth_screens/mainlanding.dart';
+import 'screens/auth_screens/login_page.dart';
+import 'screens/auth_screens/register_page.dart';
+import 'screens/auth_screens/management_login_page.dart';
+import 'screens/establishment_owner_screens/establishment_dashboard.dart';
+import 'screens/admin_screens/administrator_dashboard.dart';
+import 'screens/admin_screens/super_admin_dashboard.dart';
 import 'widgets/main_navigation.dart';
 
 void main() async {
@@ -71,7 +71,7 @@ class SamalNavApp extends StatelessWidget {
           case AppRoutes.profile:
             page = const MainNavigation(initialIndex: 4);
             break;
-          case AppRoutes.establishment:
+          case AppRoutes.establishmentOwner:
             page = const EstablishmentDashboard();
             break;
           case AppRoutes.administrator:

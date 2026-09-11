@@ -5,6 +5,8 @@ import 'package:latlong2/latlong.dart';
 import 'package:geolocator/geolocator.dart';
 import '../../theme/palette.dart';
 import '../../state/app_state.dart';
+import '../../models/destination_record.dart';
+import '../../services/destination_service.dart';
 
 typedef _P = AppPalette;
 
@@ -14,7 +16,7 @@ typedef _P = AppPalette;
 
 class MapPlace {
   final String name;
-  final String location;
+  final String location;  
   final double rating;
   final String category;
   final LatLng coords;
@@ -34,159 +36,61 @@ class MapPlace {
     this.isUnderMaintenance = false,
     required this.imageUrl,
   });
+
+  factory MapPlace.fromRecord(DestinationRecord rec) {
+    List<Color> grad;
+    switch (rec.category) {
+      case 'Beach':
+        grad = [_P.skyBlue, _P.blue];
+        break;
+      case 'Falls':
+        grad = [_P.blue, _P.navy];
+        break;
+      case 'Mountain':
+        grad = [_P.navy, _P.deepNavy];
+        break;
+      case 'Resort':
+        grad = [_P.skyBlue, _P.blue];
+        break;
+      case 'Island':
+        grad = [_P.skyBlue, _P.navy];
+        break;
+      case 'Historical':
+        grad = [_P.navy, _P.deepNavy];
+        break;
+      case 'Hotel':
+        grad = [_P.skyBlue, _P.deepNavy];
+        break;
+      default:
+        grad = [_P.blue, _P.navy];
+    }
+    return MapPlace(
+      name: rec.name,
+      location: rec.location,
+      rating: rec.rating,
+      category: rec.category,
+      coords: LatLng(rec.lat, rec.lng),
+      gradient: grad,
+      isClosed: !rec.isActive,
+      isUnderMaintenance: rec.isMaintenance,
+      imageUrl: rec.primaryImageUrl,
+    );
+  }
 }
-
-// ═══════════════════════════════════════════════════════════════════
-//  PLACES DATABASE
-// ═══════════════════════════════════════════════════════════════════
-
-const _allPlaces = <MapPlace>[
-  // Beach
-  MapPlace(
-    name: 'Isla Reta Beach',
-    location: 'Talikud Island, Samal',
-    rating: 4.8,
-    category: 'Beach',
-    coords: LatLng(6.9360, 125.7597),
-    gradient: [_P.skyBlue, _P.blue],
-    imageUrl: 'https://images.unsplash.com/photo-1507525428034-b723cf961d3e?auto=format&fit=crop&w=500&q=80',
-  ),
-  MapPlace(
-    name: 'Kaputian Beach',
-    location: 'South Samal',
-    rating: 4.9,
-    category: 'Beach',
-    coords: LatLng(6.9644, 125.7235),
-    gradient: [_P.skyBlue, _P.navy],
-    imageUrl: 'https://images.unsplash.com/photo-1507525428034-b723cf961d3e?auto=format&fit=crop&w=500&q=80',
-  ),
-  MapPlace(
-    name: 'Canibad Beach',
-    location: 'Babak District',
-    rating: 4.6,
-    category: 'Beach',
-    coords: LatLng(7.1353, 125.7925),
-    gradient: [_P.skyBlue, _P.blue],
-    imageUrl: 'https://images.unsplash.com/photo-1439066615861-d1af74d74000?auto=format&fit=crop&w=500&q=80',
-  ),
-  MapPlace(
-    name: 'Paradise Island',
-    location: 'Penaplata, Samal',
-    rating: 4.7,
-    category: 'Beach',
-    coords: LatLng(7.1158, 125.6881),
-    gradient: [_P.skyBlue, _P.navy],
-    imageUrl: 'https://images.unsplash.com/photo-1506929562872-bb421503ef21?auto=format&fit=crop&w=500&q=80',
-  ),
-  MapPlace(
-    name: 'Vanishing Island',
-    location: 'Babak District',
-    rating: 4.7,
-    category: 'Beach',
-    coords: LatLng(7.0700, 125.7100),
-    gradient: [_P.blue, _P.navy],
-    imageUrl: 'https://images.unsplash.com/photo-1473116763269-255448993f66?auto=format&fit=crop&w=500&q=80',
-  ),
-  // Falls
-  MapPlace(
-    name: 'Hagimit Falls',
-    location: 'Penaplata, Samal',
-    rating: 4.7,
-    category: 'Falls',
-    coords: LatLng(7.0666, 125.7230),
-    gradient: [_P.blue, _P.navy],
-    imageUrl: 'https://images.unsplash.com/photo-1470071459604-3b5ec3a7fe05?auto=format&fit=crop&w=500&q=80',
-  ),
-  // Mountain
-  MapPlace(
-    name: 'Mt. Puting Bato',
-    location: 'Bali-Bali, Samal',
-    rating: 4.6,
-    category: 'Mountain',
-    coords: LatLng(7.0656, 125.7681),
-    gradient: [_P.navy, _P.deepNavy],
-    imageUrl: 'https://images.unsplash.com/photo-1454496522488-7a8e488e8606?auto=format&fit=crop&w=500&q=80',
-  ),
-  // Resort
-  MapPlace(
-    name: 'Pearl Farm Resort',
-    location: 'Kaputian, Samal',
-    rating: 4.9,
-    category: 'Resort',
-    coords: LatLng(7.0050, 125.7271),
-    gradient: [_P.skyBlue, _P.blue],
-    imageUrl: 'https://images.unsplash.com/photo-1544735716-392fe2489ffa?auto=format&fit=crop&w=500&q=80',
-  ),
-  MapPlace(
-    name: 'Maxima Aquafun',
-    location: 'Penaplata, Samal',
-    rating: 4.6,
-    category: 'Resort',
-    coords: LatLng(7.0425, 125.7275),
-    gradient: [_P.blue, _P.navy],
-    imageUrl: 'https://images.unsplash.com/photo-1538964173425-93884d739596?auto=format&fit=crop&w=500&q=80',
-  ),
-  MapPlace(
-    name: 'Bali-Bali View Deck',
-    location: 'Penaplata, Samal',
-    rating: 4.5,
-    category: 'Resort',
-    coords: LatLng(7.0125, 125.7198),
-    gradient: [_P.blue, _P.navy],
-    imageUrl: 'https://images.unsplash.com/photo-1506929562872-bb421503ef21?auto=format&fit=crop&w=500&q=80',
-  ),
-  // Island
-  MapPlace(
-    name: 'Talikud Island',
-    location: 'Kaputian District',
-    rating: 4.8,
-    category: 'Island',
-    coords: LatLng(6.9322, 125.6987),
-    gradient: [_P.skyBlue, _P.navy],
-    imageUrl: 'https://images.unsplash.com/photo-1505118380757-91f5f5632de0?auto=format&fit=crop&w=500&q=80',
-  ),
-  MapPlace(
-    name: 'Coral Garden',
-    location: 'Talikud, Samal',
-    rating: 4.7,
-    category: 'Island',
-    coords: LatLng(6.9280, 125.7020),
-    gradient: [_P.skyBlue, _P.navy],
-    imageUrl: 'https://images.unsplash.com/photo-1544735716-392fe2489ffa?auto=format&fit=crop&w=500&q=80',
-  ),
-  // Historical
-  MapPlace(
-    name: 'Monfort Bat Cave',
-    location: 'Babak, Samal',
-    rating: 4.5,
-    category: 'Historical',
-    coords: LatLng(7.1260, 125.7140),
-    gradient: [_P.navy, _P.deepNavy],
-    imageUrl: 'https://images.unsplash.com/photo-1507163546605-a84d8ff1a3bb?auto=format&fit=crop&w=500&q=80',
-  ),
-  MapPlace(
-    name: 'Ligid Island Cave',
-    location: 'Penaplata, Samal',
-    rating: 4.4,
-    category: 'Historical',
-    coords: LatLng(7.1850, 125.7550),
-    gradient: [_P.blue, _P.navy],
-    imageUrl: 'https://images.unsplash.com/photo-1510414842594-a61c69b5ae57?auto=format&fit=crop&w=500&q=80',
-  ),
-];
 
 // ═══════════════════════════════════════════════════════════════════
 //  CATEGORIES
 // ═══════════════════════════════════════════════════════════════════
 
 const _categories = <Map<String, dynamic>>[
-  {'name': 'All', 'icon': Icons.explore_rounded},
-  {'name': 'Beach', 'icon': Icons.beach_access_rounded},
-  {'name': 'Falls', 'icon': Icons.water_drop_rounded},
-  {'name': 'Mountain', 'icon': Icons.landscape_rounded},
-  {'name': 'Resort', 'icon': Icons.villa_rounded},
-  {'name': 'Island', 'icon': Icons.sailing_rounded},
-  {'name': 'Historical', 'icon': Icons.account_balance_rounded},
+  {'name': 'All', 'icon': Icons.explore_rounded, 'color': Color(0xFF0077B6)},
+  {'name': 'Beach', 'icon': Icons.beach_access_rounded, 'color': Color(0xFF00897B)},
+  {'name': 'Resort', 'icon': Icons.villa_rounded, 'color': Color(0xFFE91E63)},
+  {'name': 'Falls', 'icon': Icons.water_drop_rounded, 'color': Color(0xFF7E57C2)},
+  {'name': 'Mountain', 'icon': Icons.landscape_rounded, 'color': Color(0xFF2E7D32)},
+  {'name': 'Island', 'icon': Icons.sailing_rounded, 'color': Color(0xFF0288D1)},
+  {'name': 'Historical', 'icon': Icons.account_balance_rounded, 'color': Color(0xFF8D6E63)},
+  {'name': 'Hotel', 'icon': Icons.hotel_rounded, 'color': Color(0xFFD81B60)},
 ];
 
 // ═══════════════════════════════════════════════════════════════════
@@ -205,7 +109,10 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin {
   String _selectedCategory = 'All';
   final TextEditingController _searchController = TextEditingController();
   final PageController _cardController = PageController(viewportFraction: 0.62);
-  bool _isSatelliteMode = true;
+  bool _isSatelliteMode = false;
+
+  List<MapPlace> _allPlaces = [];
+  bool _isLoadingPlaces = true;
 
   LatLng? _currentLocation;
   List<LatLng> _routePolyline = [];
@@ -222,6 +129,7 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin {
   @override
   void initState() {
     super.initState();
+    _loadPlaces();
     _initLocation();
     _checkActiveRoute();
 
@@ -238,6 +146,26 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin {
     _cardController.addListener(() {
       setState(() => _cardPage = _cardController.page ?? 0);
     });
+
+    _searchController.addListener(() {
+      setState(() {});
+    });
+  }
+
+  Future<void> _loadPlaces() async {
+    try {
+      final records = await DestinationService.getAll();
+      if (mounted) {
+        setState(() {
+          _allPlaces = records.map((r) => MapPlace.fromRecord(r)).toList();
+          _isLoadingPlaces = false;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() => _isLoadingPlaces = false);
+      }
+    }
   }
 
   Future<void> _initLocation() async {
@@ -281,8 +209,15 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin {
   }
 
   List<MapPlace> get _filteredPlaces {
-    if (_selectedCategory == 'All') return _allPlaces;
-    return _allPlaces.where((p) => p.category == _selectedCategory).toList();
+    final q = _searchController.text.trim().toLowerCase();
+    return _allPlaces.where((p) {
+      final matchesCategory = _selectedCategory == 'All' || p.category == _selectedCategory;
+      final matchesQuery = q.isEmpty ||
+          p.name.toLowerCase().contains(q) ||
+          p.location.toLowerCase().contains(q) ||
+          p.category.toLowerCase().contains(q);
+      return matchesCategory && matchesQuery;
+    }).toList();
   }
 
   // ── Animate camera to a location ──────────────────────────────────
@@ -358,17 +293,23 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin {
               ),
             ),
             children: [
-              _isSatelliteMode
-                  ? TileLayer(
-                      urlTemplate: 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
-                      userAgentPackageName: 'com.samal.nav',
-                      maxZoom: 19,
-                    )
-                  : TileLayer(
-                      urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
-                      userAgentPackageName: 'com.samal.nav',
-                      maxZoom: 19,
-                    ),
+              if (_isSatelliteMode) ...[
+                TileLayer(
+                  urlTemplate: 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
+                  userAgentPackageName: 'com.samal.nav',
+                  maxZoom: 19,
+                ),
+                TileLayer(
+                  urlTemplate: 'https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Transportation/MapServer/tile/{z}/{y}/{x}',
+                  userAgentPackageName: 'com.samal.nav',
+                  maxZoom: 19,
+                ),
+              ] else
+                TileLayer(
+                  urlTemplate: 'https://basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}@2x.png',
+                  userAgentPackageName: 'com.samal.nav',
+                  maxZoom: 19,
+                ),
 
               // ── Route Polylines (red = remaining, green = completed) ──
               if (_routePolyline.length >= 2) ...[
@@ -424,41 +365,26 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin {
                         _filteredPlaces[_focusedPlaceIndex!] == place;
                     return Marker(
                       point: place.coords,
-                      width: isFocused ? 50 : 40,
-                      height: isFocused ? 50 : 40,
+                      width: isFocused ? 200 : 160,
+                      height: isFocused ? 38 : 30,
+                      alignment: Alignment.center,
                       child: _DroppingMarker(
-                        delay: Duration(milliseconds: 40 * i),
+                        delay: Duration(milliseconds: 20 * i),
                         controller: _markerDropController,
                         child: GestureDetector(
-                          onTap: place.isClosed ? null : () => _showMarkerDetail(place),
-                          child: AnimatedContainer(
-                            duration: const Duration(milliseconds: 280),
-                            curve: Curves.easeOutCubic,
-                            decoration: BoxDecoration(
-                              gradient: LinearGradient(
-                                colors: place.isClosed
-                                    ? [Colors.grey.shade400, Colors.grey.shade600]
-                                    : place.isUnderMaintenance
-                                        ? [const Color(0xFFFFCA28), const Color(0xFFF57F17)]
-                                        : const [_P.skyBlue, _P.blue],
-                                begin: Alignment.topLeft,
-                                end: Alignment.bottomRight,
-                              ),
-                              shape: BoxShape.circle,
-                              border: Border.all(color: Colors.white, width: isFocused ? 3 : 2),
-                              boxShadow: [
-                                BoxShadow(
-                                  color: (place.isClosed ? Colors.grey.shade600 : place.isUnderMaintenance ? const Color(0xFFF57F17) : _P.blue).withValues(alpha: isFocused ? 0.55 : 0.4),
-                                  blurRadius: isFocused ? 14 : 8,
-                                  offset: const Offset(0, 3),
-                                ),
-                              ],
-                            ),
-                            child: Icon(
-                              place.isClosed ? Icons.lock_rounded : place.isUnderMaintenance ? Icons.construction_rounded : Icons.location_on_rounded, 
-                              color: Colors.white, 
-                              size: isFocused ? 24 : 20,
-                            ),
+                          onTap: place.isClosed
+                              ? null
+                              : () {
+                                  if (_focusedPlaceIndex == i) {
+                                    _showMarkerDetail(place);
+                                  } else {
+                                    _onSuggestionTap(i, place);
+                                  }
+                                },
+                          child: _GoogleMapPoiMarker(
+                            place: place,
+                            isFocused: isFocused,
+                            isSatelliteMode: _isSatelliteMode,
                           ),
                         ),
                       ),
@@ -543,6 +469,7 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin {
                                   final cat = _categories[i];
                                   final name = cat['name'] as String;
                                   final icon = cat['icon'] as IconData;
+                                  final color = (cat['color'] as Color?) ?? _P.blue;
                                   final selected = _selectedCategory == name;
                                   return GestureDetector(
                                     onTap: () => setState(() {
@@ -554,14 +481,24 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin {
                                       curve: Curves.easeOutCubic,
                                       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
                                       decoration: BoxDecoration(
-                                        gradient: selected ? const LinearGradient(colors: [_P.deepNavy, _P.navy]) : null,
-                                        color: selected ? null : _P.iceBlue.withValues(alpha: 0.7),
+                                        color: selected
+                                            ? color
+                                            : _P.iceBlue.withValues(alpha: 0.7),
                                         borderRadius: BorderRadius.circular(50),
+                                        boxShadow: selected
+                                            ? [
+                                                BoxShadow(
+                                                  color: color.withValues(alpha: 0.35),
+                                                  blurRadius: 8,
+                                                  offset: const Offset(0, 2),
+                                                ),
+                                              ]
+                                            : null,
                                       ),
                                       child: Row(
                                         mainAxisSize: MainAxisSize.min,
                                         children: [
-                                          Icon(icon, color: selected ? _P.skyBlue : _P.navy, size: 15),
+                                          Icon(icon, color: selected ? Colors.white : color, size: 15),
                                           const SizedBox(width: 6),
                                           Text(
                                             name,
@@ -602,10 +539,10 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin {
                       ? Center(
                           child: _GlassPanel(
                             borderRadius: 20,
-                            child: const Padding(
-                              padding: EdgeInsets.symmetric(horizontal: 24, vertical: 14),
-                              child: Text('No places in this category yet',
-                                  style: TextStyle(color: _P.inkSoft, fontSize: 14, fontWeight: FontWeight.w600)),
+                            child: Padding(
+                              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
+                              child: Text(_isLoadingPlaces ? 'Loading places in Samal…' : 'No places in this category yet',
+                                  style: const TextStyle(color: _P.inkSoft, fontSize: 14, fontWeight: FontWeight.w600)),
                             ),
                           ),
                         )
@@ -1101,6 +1038,158 @@ class _GlassFabState extends State<_GlassFab> {
           ),
           child: Icon(widget.icon, color: Colors.white, size: 22),
         ),
+      ),
+    );
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════
+//  CATEGORY STYLE (Google Maps matching colors & icons)
+// ═══════════════════════════════════════════════════════════════════
+
+class CategoryStyle {
+  final Color color;
+  final IconData icon;
+  final String label;
+
+  const CategoryStyle({
+    required this.color,
+    required this.icon,
+    required this.label,
+  });
+
+  static CategoryStyle getStyle(String category) {
+    switch (category.toLowerCase()) {
+      case 'beach':
+        return const CategoryStyle(
+          color: Color(0xFF00897B), // Google Maps Teal / Emerald
+          icon: Icons.beach_access_rounded,
+          label: 'Beach',
+        );
+      case 'resort':
+        return const CategoryStyle(
+          color: Color(0xFFE91E63), // Google Maps Rose / Pink
+          icon: Icons.villa_rounded,
+          label: 'Resort',
+        );
+      case 'hotel':
+        return const CategoryStyle(
+          color: Color(0xFFD81B60), // Magenta / Coral
+          icon: Icons.hotel_rounded,
+          label: 'Hotel',
+        );
+      case 'falls':
+        return const CategoryStyle(
+          color: Color(0xFF7E57C2), // Purple for Waterfall / Natural attractions
+          icon: Icons.water_drop_rounded,
+          label: 'Falls',
+        );
+      case 'mountain':
+        return const CategoryStyle(
+          color: Color(0xFF2E7D32), // Forest Green for Mountain / Peak
+          icon: Icons.landscape_rounded,
+          label: 'Mountain',
+        );
+      case 'island':
+        return const CategoryStyle(
+          color: Color(0xFF0288D1), // Ocean Sky Blue
+          icon: Icons.sailing_rounded,
+          label: 'Island',
+        );
+      case 'historical':
+      case 'cave':
+        return const CategoryStyle(
+          color: Color(0xFF8D6E63), // Warm Brown / Amber
+          icon: Icons.account_balance_rounded,
+          label: 'Historical',
+        );
+      case 'forest':
+        return const CategoryStyle(
+          color: Color(0xFF388E3C), // Pine Green
+          icon: Icons.park_rounded,
+          label: 'Forest',
+        );
+      default:
+        return const CategoryStyle(
+          color: Color(0xFF0077B6),
+          icon: Icons.place_rounded,
+          label: 'Attraction',
+        );
+    }
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════
+//  GOOGLE MAPS STYLE POI MARKER (Icon badge + Colored Label)
+// ═══════════════════════════════════════════════════════════════════
+
+class _GoogleMapPoiMarker extends StatelessWidget {
+  final MapPlace place;
+  final bool isFocused;
+  final bool isSatelliteMode;
+
+  const _GoogleMapPoiMarker({
+    required this.place,
+    required this.isFocused,
+    required this.isSatelliteMode,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final style = CategoryStyle.getStyle(place.category);
+    final categoryColor = place.isClosed
+        ? Colors.grey.shade600
+        : place.isUnderMaintenance
+            ? const Color(0xFFF57F17)
+            : style.color;
+
+    final iconData = place.isClosed
+        ? Icons.lock_rounded
+        : place.isUnderMaintenance
+            ? Icons.construction_rounded
+            : style.icon;
+
+    return AnimatedScale(
+      duration: const Duration(milliseconds: 200),
+      scale: isFocused ? 1.12 : 1.0,
+      curve: Curves.easeOutCubic,
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.center,
+        children: [
+          // Small Category Icon Badge (no shadow, clean badge)
+          Container(
+            width: isFocused ? 22 : 18,
+            height: isFocused ? 22 : 18,
+            decoration: BoxDecoration(
+              color: categoryColor,
+              shape: BoxShape.circle,
+              border: Border.all(color: Colors.white, width: 1.2),
+            ),
+            child: Center(
+              child: Icon(
+                iconData,
+                size: isFocused ? 12 : 10,
+                color: Colors.white,
+              ),
+            ),
+          ),
+          const SizedBox(width: 4),
+          // Category-colored font for place name (pure font only, no shadow, no background)
+          Flexible(
+            child: Text(
+              place.name,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                color: categoryColor,
+                fontSize: isFocused ? 12.5 : 11,
+                fontWeight: FontWeight.w800,
+                letterSpacing: -0.2,
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }

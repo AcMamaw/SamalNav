@@ -1,15 +1,16 @@
 /// Application roles aligned with the SamalNav use-case diagram.
 enum AppRole {
   tourist,
-  establishment,
+  establishmentOwner,
   administrator,
   superAdmin;
 
+  /// Database value — kept as 'establishment' to match existing Supabase data.
   String get value {
     switch (this) {
       case AppRole.tourist:
         return 'tourist';
-      case AppRole.establishment:
+      case AppRole.establishmentOwner:
         return 'establishment';
       case AppRole.administrator:
         return 'administrator';
@@ -22,8 +23,8 @@ enum AppRole {
     switch (this) {
       case AppRole.tourist:
         return 'Tourist';
-      case AppRole.establishment:
-        return 'Tourism Establishment';
+      case AppRole.establishmentOwner:
+        return 'Establishment Owner';
       case AppRole.administrator:
         return 'Administrator';
       case AppRole.superAdmin:
@@ -34,8 +35,9 @@ enum AppRole {
   static AppRole fromString(String? raw) {
     switch (raw?.toLowerCase().trim()) {
       case 'establishment':
+      case 'establishment_owner':
       case 'tourism_establishment':
-        return AppRole.establishment;
+        return AppRole.establishmentOwner;
       case 'administrator':
       case 'admin':
         return AppRole.administrator;

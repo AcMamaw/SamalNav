@@ -516,7 +516,7 @@ class _UserRolesTabState extends State<_UserRolesTab> {
 
   Color _roleColor(AppRole role) => switch (role) {
         AppRole.tourist => _P.blue,
-        AppRole.establishment => const Color(0xFF43A047),
+        AppRole.establishmentOwner => const Color(0xFF43A047),
         AppRole.administrator => const Color(0xFFFFA726),
         AppRole.superAdmin => Colors.redAccent,
       };
@@ -543,7 +543,7 @@ class _UserRolesTabState extends State<_UserRolesTab> {
                 ),
                 const SizedBox(height: 6),
                 const Text(
-                  'Tap edit to assign Tourist, Establishment, Administrator, or Super Admin.',
+                  'Tap edit to assign Tourist, Establishment Owner, Administrator, or Super Admin.',
                   style: TextStyle(color: _P.inkSoft, fontSize: 14),
                 ),
                 const SizedBox(height: 20),

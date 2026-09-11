@@ -5,7 +5,7 @@ import '../../models/app_role.dart';
 import '../../services/audit_service.dart';
 import '../../services/role_service.dart';
 
-/// Separate sign-in screen for Establishment, Administrator, and
+/// Separate sign-in screen for Establishment Owner, Administrator, and
 /// Super Admin accounts. Tourists cannot use this to reach their
 /// dashboard — they're redirected to the regular /login page instead.
 class ManagementLoginPage extends StatefulWidget {
@@ -113,7 +113,7 @@ class _ManagementLoginPageState extends State<ManagementLoginPage> {
                   ),
                   const SizedBox(height: 6),
                   const Text(
-                    'For Establishment, Administrator & Super Admin accounts',
+                    'For Establishment Owner, Administrator & Super Admin accounts',
                     textAlign: TextAlign.center,
                     style: TextStyle(color: Colors.white60, fontSize: 13),
                   ),

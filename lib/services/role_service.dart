@@ -11,8 +11,8 @@ class RoleService {
     switch (role) {
       case AppRole.tourist:
         return AppRoutes.home;
-      case AppRole.establishment:
-        return AppRoutes.establishment;
+      case AppRole.establishmentOwner:
+        return AppRoutes.establishmentOwner;
       case AppRole.administrator:
         return AppRoutes.administrator;
       case AppRole.superAdmin:

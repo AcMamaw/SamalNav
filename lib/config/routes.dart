@@ -4,7 +4,7 @@ class AppRoutes {
   static const String login = '/login';
   static const String register = '/register';
 
-  // Staff / management portal (establishment, administrator, super_admin)
+  // Staff / management portal (establishment owner, administrator, super_admin)
   static const String managementLogin = '/management-login';
 
   // Tourist app
@@ -15,7 +15,7 @@ class AppRoutes {
   static const String profile = '/profile';
 
   // RBAC dashboards
-  static const String establishment = '/establishment';
+  static const String establishmentOwner = '/establishment';
   static const String administrator = '/administrator';
   static const String superAdmin = '/super-admin';
 

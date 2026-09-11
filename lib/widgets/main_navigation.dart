@@ -6,11 +6,11 @@ import '../models/app_role.dart';
 import '../services/role_service.dart';
 import 'guest_redirect_view.dart';
 import '../theme/palette.dart';
-import '../screens/home/home_page.dart';
-import '../screens/map/map_page.dart';
-import '../screens/plan/plan_page.dart';
-import '../screens/favorite/favorite_page.dart';
-import '../screens/profile/profile_page.dart';
+import '../screens/tourist_screens/home_page.dart';
+import '../screens/tourist_screens/map_page.dart';
+import '../screens/tourist_screens/plan_page.dart';
+import '../screens/tourist_screens/favorite_page.dart';
+import '../screens/tourist_screens/profile_page.dart';
 
 class MainNavigation extends StatefulWidget {
   final int initialIndex;

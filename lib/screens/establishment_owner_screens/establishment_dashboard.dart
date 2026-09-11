@@ -31,7 +31,7 @@ class _EstablishmentDashboardState extends State<EstablishmentDashboard> {
     WidgetsBinding.instance.addPostFrameCallback((_) async {
       await RoleService.guardRoute(
         context,
-        allowedRoles: const [AppRole.establishment],
+        allowedRoles: const [AppRole.establishmentOwner],
       );
       await _loadEstablishment();
     });
@@ -111,7 +111,7 @@ class _EstablishmentDashboardState extends State<EstablishmentDashboard> {
 
     final est = _establishment!;
     return RoleDashboardShell(
-      role: AppRole.establishment,
+      role: AppRole.establishmentOwner,
       subtitle: est.name,
       navItems: const [
         RoleNavItem(icon: Icons.dashboard_rounded, label: 'Overview'),

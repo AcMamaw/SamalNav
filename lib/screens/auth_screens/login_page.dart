@@ -329,7 +329,6 @@ class _LoginPageState extends State<LoginPage>
                                   alignment: Alignment.centerRight,
                                   child: TextButton(
                                     onPressed: () {
-                                      // TODO: Forgot password logic
                                     },
                                     child: const Text(
                                       'Forgot Password?',

@@ -2,6 +2,8 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import '../../theme/palette.dart';
 import '../../models/review.dart';
+import '../../models/destination_record.dart';
+import '../../services/destination_service.dart';
 
 typedef _P = AppPalette;
 
@@ -10,7 +12,7 @@ class Place {
   final String name;
   final String location;
   final double rating;
-  final String category; // Beach, Forest, Mountain, Island
+  final String category; // Beach, Resort, Falls, Forest, Mountain, Island, Historical, Hotel
   final List<Color> gradient;
   final String description;
   final String price;
@@ -32,6 +34,52 @@ class Place {
     this.galleryUrls = const [],
     this.isLiked = false,
   });
+
+  factory Place.fromRecord(DestinationRecord rec) {
+    List<Color> grad;
+    switch (rec.category) {
+      case 'Beach':
+        grad = const [_P.skyBlue, _P.navy];
+        break;
+      case 'Falls':
+      case 'Forest':
+        grad = const [_P.blue, _P.navy];
+        break;
+      case 'Mountain':
+        grad = const [_P.navy, _P.deepNavy];
+        break;
+      case 'Resort':
+        grad = const [_P.skyBlue, _P.blue];
+        break;
+      case 'Island':
+        grad = const [_P.skyBlue, _P.deepNavy];
+        break;
+      case 'Historical':
+        grad = const [_P.navy, _P.deepNavy];
+        break;
+      case 'Hotel':
+        grad = const [_P.skyBlue, _P.deepNavy];
+        break;
+      default:
+        grad = const [_P.blue, _P.deepNavy];
+    }
+
+    return Place(
+      name: rec.name,
+      location: rec.location,
+      rating: rec.rating,
+      category: rec.category,
+      gradient: grad,
+      description: rec.description != null && rec.description!.isNotEmpty
+          ? rec.description!
+          : 'A verified destination in Samal Island with stunning views and local hospitality.',
+      price: rec.formattedPrice,
+      owner: rec.ownerName ?? 'Samal Tourism Board',
+      imageUrl: rec.primaryImageUrl,
+      galleryUrls: rec.galleryUrls,
+      isLiked: false,
+    );
+  }
 }
 
 // ── All Samal Island Destinations ────────────────────────────────────
@@ -262,21 +310,39 @@ class _HomePageState extends State<HomePage> {
 
   final _categories = [
     {'name': 'Beach', 'icon': Icons.beach_access_rounded},
-    {'name': 'Forest', 'icon': Icons.park_rounded},
+    {'name': 'Resort', 'icon': Icons.villa_rounded},
+    {'name': 'Falls', 'icon': Icons.water_drop_rounded},
     {'name': 'Mountain', 'icon': Icons.landscape_rounded},
     {'name': 'Island', 'icon': Icons.water_rounded},
+    {'name': 'Historical', 'icon': Icons.account_balance_rounded},
+    {'name': 'Hotel', 'icon': Icons.hotel_rounded},
+    {'name': 'Forest', 'icon': Icons.park_rounded},
   ];
 
   @override
   void initState() {
     super.initState();
     _places = _allPlaces();
+    _loadPlaces();
     _searchCtrl.addListener(() {
       setState(() => _searchQuery = _searchCtrl.text.toLowerCase());
     });
     _clockTimer = Timer.periodic(const Duration(seconds: 1), (_) {
       setState(() => _now = DateTime.now());
     });
+  }
+
+  Future<void> _loadPlaces() async {
+    try {
+      final records = await DestinationService.getAll();
+      if (mounted && records.isNotEmpty) {
+        setState(() {
+          _places = records.map((r) => Place.fromRecord(r)).toList();
+        });
+      }
+    } catch (e) {
+      debugPrint('Error loading places in HomePage: $e');
+    }
   }
 
   @override
@@ -2888,9 +2954,9 @@ class _HomePageState extends State<HomePage> {
                             context,
                           ); // close details sheet so user can reopen and see it fresh
                           _showPlaceDetail(
-                            _allPlaces().firstWhere(
+                            _places.firstWhere(
                               (p) => p.name == placeName,
-                              orElse: () => _allPlaces().first,
+                              orElse: () => _places.first,
                             ),
                           );
                         },
