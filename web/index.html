@@ -18,19 +18,40 @@
 
   <meta charset="UTF-8">
   <meta content="IE=Edge" http-equiv="X-UA-Compatible">
-  <meta name="description" content="A new Flutter project.">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="Plan trips and explore destinations on the Island Garden City of Samal.">
+  <meta name="theme-color" content="#0077B6">
 
   <!-- iOS meta tags & icons -->
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black">
-  <meta name="apple-mobile-web-app-title" content="samal_nav">
+  <meta name="apple-mobile-web-app-title" content="SAMAL NAV">
   <link rel="apple-touch-icon" href="icons/Icon-192.png">
 
   <!-- Favicon -->
   <link rel="icon" type="image/png" href="favicon.png"/>
 
-  <title>Samal Nav</title>
+  <title>SAMAL NAV</title>
   <link rel="manifest" href="manifest.json">
+
+  <style>
+    #pwa-install-button {
+      position: fixed;
+      z-index: 10000;
+      right: max(16px, env(safe-area-inset-right));
+      bottom: max(16px, env(safe-area-inset-bottom));
+      border: 0;
+      border-radius: 999px;
+      padding: 12px 18px;
+      color: #fff;
+      background: #0077B6;
+      box-shadow: 0 4px 16px #001f3f40;
+      font: 600 14px system-ui, sans-serif;
+      cursor: pointer;
+    }
+    #pwa-install-button:focus-visible { outline: 3px solid #80d5ff; outline-offset: 3px; }
+    #pwa-install-button[hidden] { display: none; }
+  </style>
 
   <!-- Material Icons font (fixes broken icons on Flutter web) -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -38,6 +59,7 @@
   <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
 </head>
 <body>
+  <button id="pwa-install-button" type="button" hidden aria-label="Install SAMAL NAV">Install app</button>
   <!-- Preload Material Icons so they render on first paint -->
   <style>
     @font-face {
@@ -47,6 +69,43 @@
       src: url(assets/fonts/MaterialIcons-Regular.otf) format('opentype');
     }
   </style>
+  <script>
+    (() => {
+      const button = document.getElementById('pwa-install-button');
+      const standalone = window.matchMedia('(display-mode: standalone)').matches ||
+        window.navigator.standalone === true;
+      if (standalone) return;
+
+      let installEvent;
+      window.addEventListener('beforeinstallprompt', (event) => {
+        event.preventDefault();
+        installEvent = event;
+        button.hidden = false;
+      });
+      button.addEventListener('click', async () => {
+        if (!installEvent) return;
+        button.disabled = true;
+        await installEvent.prompt();
+        installEvent = null;
+        button.hidden = true;
+        button.disabled = false;
+      });
+      window.addEventListener('appinstalled', () => {
+        installEvent = null;
+        button.hidden = true;
+      });
+    })();
+  </script>
+  <script>
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', () => {
+        const workerUrl = new URL('service-worker.js', document.baseURI);
+        navigator.serviceWorker.register(workerUrl).catch((error) => {
+          console.warn('SAMAL NAV offline shell could not be registered.', error);
+        });
+      });
+    }
+  </script>
   <script src="flutter_bootstrap.js" async></script>
 </body>
 </html>

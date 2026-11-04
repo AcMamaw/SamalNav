@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'services/offline_cache_service.dart';
 import 'config/routes.dart';
 import 'config/supabase_config.dart';
 import 'screens/auth_screens/mainlanding.dart';
@@ -13,6 +14,8 @@ import 'widgets/main_navigation.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+
+  await OfflineCacheService.initialize();
 
   await Supabase.initialize(
     url: SupabaseConfig.url,
@@ -28,7 +31,7 @@ class SamalNavApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'Samal Nav',
+      title: 'SAMAL NAV',
       debugShowCheckedModeBanner: false,
       theme: ThemeData(
         colorScheme: ColorScheme.fromSeed(

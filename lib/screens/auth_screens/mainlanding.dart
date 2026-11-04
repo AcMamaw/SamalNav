@@ -306,6 +306,8 @@ class _MainLandingPageState extends State<MainLandingPage>
           child: Image.network(
             'https://images.unsplash.com/photo-1559128010-7c1ad6e1b6a5?w=800&q=80',
             fit: BoxFit.cover,
+            errorBuilder: (context, error, stackTrace) =>
+                const ColoredBox(color: Color(0xFF0D1B2A)),
           ),
         ),
         // Dark Overlay
@@ -397,6 +399,8 @@ class _MainLandingPageState extends State<MainLandingPage>
           child: Image.network(
             'https://images.unsplash.com/photo-1514933651103-005eec06c04b?w=800&q=80',
             fit: BoxFit.cover,
+            errorBuilder: (context, error, stackTrace) =>
+                const ColoredBox(color: Color(0xFF0D1B2A)),
           ),
         ),
         // Dark Gradient Overlay
@@ -481,8 +485,8 @@ class _MainLandingPageState extends State<MainLandingPage>
         filter: ImageFilter.blur(sigmaX: 15, sigmaY: 15),
         child: Container(
           width: 165,
-          height: 220, // Forces all cards to have the exact same height
           padding: const EdgeInsets.all(16),
+          constraints: const BoxConstraints(minHeight: 220),
           decoration: BoxDecoration(
             gradient: LinearGradient(
               colors: [
@@ -526,7 +530,7 @@ class _MainLandingPageState extends State<MainLandingPage>
                 subtitle,
                 style: TextStyle(color: Colors.white.withValues(alpha: 0.7), fontSize: 12, height: 1.3),
               ),
-              const Spacer(), // Pushes the pill to the very bottom
+              const SizedBox(height: 12),
               // Bottom pill
               Align(
                 alignment: Alignment.bottomRight,

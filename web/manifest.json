@@ -1,12 +1,11 @@
 {
-    "name": "samal_nav",
-    "short_name": "samal_nav",
-    "start_url": ".",
+    "name": "SAMAL NAV",
+    "short_name": "SamalNav",
+    "start_url": "./",
     "display": "standalone",
-    "background_color": "#0175C2",
-    "theme_color": "#0175C2",
-    "description": "A new Flutter project.",
-    "orientation": "portrait-primary",
+    "background_color": "#F4F7FC",
+    "theme_color": "#0077B6",
+    "description": "Plan trips and explore destinations on the Island Garden City of Samal.",
     "prefer_related_applications": false,
     "icons": [
         {
@@ -23,13 +22,13 @@
             "src": "icons/Icon-maskable-192.png",
             "sizes": "192x192",
             "type": "image/png",
-            "purpose": "maskable"
+            "purpose": "any maskable"
         },
         {
             "src": "icons/Icon-maskable-512.png",
             "sizes": "512x512",
             "type": "image/png",
-            "purpose": "maskable"
+            "purpose": "any maskable"
         }
     ]
 }

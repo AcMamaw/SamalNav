@@ -57,6 +57,7 @@ class _MainNavigationState extends State<MainNavigation> {
 
   @override
   Widget build(BuildContext context) {
+    final isWide = MediaQuery.sizeOf(context).width >= 900;
     final args = ModalRoute.of(context)?.settings.arguments as Map<String, dynamic>?;
     final package = args?['package'] as String?;
     final destination = args?['destination'] as String?; // NEW
@@ -83,11 +84,36 @@ class _MainNavigationState extends State<MainNavigation> {
 
     return Scaffold(
       backgroundColor: AppPalette.white,
-      body: IndexedStack(
-        index: _currentIndex,
-        children: pages,
+      body: Row(
+        children: [
+          if (isWide)
+            NavigationRail(
+              selectedIndex: _currentIndex,
+              onDestinationSelected: _onTabTapped,
+              labelType: NavigationRailLabelType.selected,
+              leading: const Padding(
+                padding: EdgeInsets.symmetric(vertical: 16),
+                child: Icon(Icons.explore_rounded, color: AppPalette.blue),
+              ),
+              destinations: _tabs
+                  .map(
+                    (tab) => NavigationRailDestination(
+                      icon: Icon(tab.inactiveIcon),
+                      selectedIcon: Icon(tab.activeIcon),
+                      label: Text(tab.label),
+                    ),
+                  )
+                  .toList(),
+            ),
+          Expanded(
+            child: IndexedStack(
+              index: _currentIndex,
+              children: pages,
+            ),
+          ),
+        ],
       ),
-      bottomNavigationBar: Container(
+      bottomNavigationBar: isWide ? null : Container(
         decoration: BoxDecoration(
           color: AppPalette.white,
           borderRadius: const BorderRadius.only(
