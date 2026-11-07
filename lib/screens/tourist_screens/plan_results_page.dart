@@ -93,6 +93,18 @@ class _PlanResultsPageState extends State<PlanResultsPage> with SingleTickerProv
                   _buildTopBar(context),
                   const SizedBox(height: 18),
                   _buildHeroSummary(),
+                  if (_isDayResult && !widget.dayResult!.feasibility.isFeasible)
+                    _buildFeasibilityNotice(
+                      'This day exceeds the ${widget.dayResult!.feasibility.availableHours.toStringAsFixed(1)} hour limit by '
+                      '${widget.dayResult!.feasibility.overByHours.toStringAsFixed(1)} hours '
+                      '(${widget.dayResult!.feasibility.requiredHours.toStringAsFixed(1)} hours required).',
+                    ),
+                  if (!_isDayResult && widget.itineraryResult!.violations.isNotEmpty)
+                    ...widget.itineraryResult!.violations.map((violation) => _buildFeasibilityNotice(
+                      'Day ${violation.dayNumber}: the schedule reaches ${violation.requiredHours.toStringAsFixed(1)} hours at '
+                      '${widget.destinations[violation.destinationIndex].name}, exceeding the daily limit by '
+                      '${violation.overByHours.toStringAsFixed(1)} hours.',
+                    )),
                   const SizedBox(height: 26),
                   AnimatedBuilder(
                     animation: _revealController,
@@ -113,6 +125,23 @@ class _PlanResultsPageState extends State<PlanResultsPage> with SingleTickerProv
             ),
           ),
         ),
+      ),
+    );
+  }
+
+  Widget _buildFeasibilityNotice(String message) {
+    return Container(
+      width: double.infinity,
+      margin: const EdgeInsets.only(top: 14),
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: const Color(0xFFFFF3E0),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: const Color(0xFFFFCC80)),
+      ),
+      child: Text(
+        message,
+        style: const TextStyle(color: Color(0xFF7A4100), fontWeight: FontWeight.w700),
       ),
     );
   }
@@ -245,7 +274,10 @@ class _PlanResultsPageState extends State<PlanResultsPage> with SingleTickerProv
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        _sectionTitle('Day-by-day plan', '${result.days.length} days, optimized individually.'),
+        _sectionTitle(
+          'Day-by-day plan',
+          '${result.days.length} assigned days, optimized within each day.',
+        ),
         const SizedBox(height: 18),
         ...result.days.map((day) => _buildDayCard(day)),
       ],

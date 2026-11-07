@@ -10,9 +10,9 @@ import '../../services/destination_service.dart';
 
 typedef _P = AppPalette;
 
-// ═══════════════════════════════════════════════════════════════════
+// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 //  DATA MODEL
-// ═══════════════════════════════════════════════════════════════════
+// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
 class MapPlace {
   final String name;
@@ -78,9 +78,9 @@ class MapPlace {
   }
 }
 
-// ═══════════════════════════════════════════════════════════════════
+// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 //  CATEGORIES
-// ═══════════════════════════════════════════════════════════════════
+// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
 const _categories = <Map<String, dynamic>>[
   {'name': 'All', 'icon': Icons.explore_rounded, 'color': Color(0xFF0077B6)},
@@ -93,9 +93,9 @@ const _categories = <Map<String, dynamic>>[
   {'name': 'Hotel', 'icon': Icons.hotel_rounded, 'color': Color(0xFFD81B60)},
 ];
 
-// ═══════════════════════════════════════════════════════════════════
+// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 //  WORLD PAGE
-// ═══════════════════════════════════════════════════════════════════
+// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
 class MapPage extends StatefulWidget {
   const MapPage({super.key});
@@ -116,6 +116,7 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin {
 
   LatLng? _currentLocation;
   List<LatLng> _routePolyline = [];
+  List<List<LatLng>> _routeSegments = [];
 
   // Journey tracking
   bool _journeyStarted = false;
@@ -199,6 +200,9 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin {
   void _checkActiveRoute() {
     if (AppState.hasActiveRoute && AppState.activeRoutePolyline != null) {
       _routePolyline = AppState.activeRoutePolyline!;
+      _routeSegments = AppState.activeRouteSegments.isNotEmpty
+          ? AppState.activeRouteSegments.map((segment) => List<LatLng>.from(segment)).toList()
+          : [_routePolyline];
 
       if (_routePolyline.isNotEmpty) {
         WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -206,6 +210,52 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin {
         });
       }
     }
+  }
+
+  List<Polyline> _buildRoutePolylines() {
+    final polylines = <Polyline>[];
+    var completedOffset = 0;
+    for (final segment in _routeSegments) {
+      final completedInSegment = (_completedStops - completedOffset)
+          .clamp(0, segment.length);
+
+      if (!_journeyStarted) {
+        if (segment.length >= 2) {
+          polylines.add(Polyline(
+            points: segment,
+            color: _P.blue,
+            strokeWidth: 4.0,
+            borderColor: Colors.white,
+            borderStrokeWidth: 1.5,
+          ));
+        }
+      } else {
+        if (completedInSegment >= 2) {
+          polylines.add(Polyline(
+            points: segment.sublist(0, completedInSegment),
+            color: const Color(0xFF4CAF50),
+            strokeWidth: 5.0,
+            borderColor: Colors.white,
+            borderStrokeWidth: 1.5,
+          ));
+        }
+        if (completedInSegment < segment.length) {
+          final remainingStart = (completedInSegment - 1).clamp(0, segment.length - 1);
+          final remaining = segment.sublist(remainingStart);
+          if (remaining.length >= 2) {
+            polylines.add(Polyline(
+              points: remaining,
+              color: const Color(0xFFE53935),
+              strokeWidth: 5.0,
+              borderColor: Colors.white,
+              borderStrokeWidth: 1.5,
+            ));
+          }
+        }
+      }
+      completedOffset += segment.length;
+    }
+    return polylines;
   }
 
   List<MapPlace> get _filteredPlaces {
@@ -220,7 +270,7 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin {
     }).toList();
   }
 
-  // ── Animate camera to a location ──────────────────────────────────
+  // â”€â”€ Animate camera to a location â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   void _flyTo(LatLng target, {double zoom = 15.0}) {
     final camera = _mapController.camera;
     final startLat = camera.center.latitude;
@@ -280,7 +330,7 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin {
       backgroundColor: Colors.transparent,
       body: Stack(
         children: [
-          // ── Full-screen Map ──────────────────────────────────────
+          // â”€â”€ Full-screen Map â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
           FlutterMap(
             mapController: _mapController,
             options: MapOptions(
@@ -311,51 +361,12 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin {
                   maxZoom: 19,
                 ),
 
-              // ── Route Polylines (red = remaining, green = completed) ──
-              if (_routePolyline.length >= 2) ...[
-                // Green: completed segments
-                if (_journeyStarted && _completedStops > 0 && _completedStops < _routePolyline.length)
-                  PolylineLayer(
-                    polylines: [
-                      Polyline(
-                        points: _routePolyline.sublist(0, _completedStops.clamp(0, _routePolyline.length)),
-                        color: const Color(0xFF4CAF50),
-                        strokeWidth: 5.0,
-                        borderColor: Colors.white,
-                        borderStrokeWidth: 1.5,
-                      ),
-                    ],
-                  ),
-                // Red or blue: remaining segments
-                PolylineLayer(
-                  polylines: [
-                    Polyline(
-                      points: _journeyStarted
-                          ? _routePolyline.sublist((_completedStops - 1).clamp(0, _routePolyline.length - 1))
-                          : _routePolyline,
-                      color: _journeyStarted ? const Color(0xFFE53935) : _P.blue,
-                      strokeWidth: _journeyStarted ? 5.0 : 4.0,
-                      borderColor: Colors.white,
-                      borderStrokeWidth: 1.5,
-                    ),
-                  ],
-                ),
-                // All green when journey completed
-                if (_journeyStarted && _completedStops >= _routePolyline.length)
-                  PolylineLayer(
-                    polylines: [
-                      Polyline(
-                        points: _routePolyline,
-                        color: const Color(0xFF4CAF50),
-                        strokeWidth: 5.0,
-                        borderColor: Colors.white,
-                        borderStrokeWidth: 1.5,
-                      ),
-                    ],
-                  ),
-              ],
+              // Render each itinerary day separately so no artificial
+              // inter-day connection is drawn.
+              if (_routeSegments.any((segment) => segment.length >= 2))
+                PolylineLayer(polylines: _buildRoutePolylines()),
 
-              // ── Place Markers ──────────────────────────────────
+              // â”€â”€ Place Markers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
               MarkerLayer(
                 markers: [
                   ..._filteredPlaces.asMap().entries.map((entry) {
@@ -412,7 +423,7 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin {
             ],
           ),
 
-          // ── Top Overlay: Glass control deck ─────────────────────
+          // â”€â”€ Top Overlay: Glass control deck â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
           SafeArea(
             child: Column(
               children: [
@@ -437,7 +448,7 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin {
                                       controller: _searchController,
                                       style: const TextStyle(color: _P.deepNavy, fontSize: 15, fontWeight: FontWeight.w500),
                                       decoration: const InputDecoration(
-                                        hintText: 'Search places in Samal…',
+                                        hintText: 'Search places in Samalâ€¦',
                                         hintStyle: TextStyle(color: _P.inkSoft, fontSize: 14, fontWeight: FontWeight.w500),
                                         border: InputBorder.none,
                                         isCollapsed: true,
@@ -525,7 +536,7 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin {
             ),
           ),
 
-          // ── Bottom Overlay: Carousel suggestion cards ───────────
+          // â”€â”€ Bottom Overlay: Carousel suggestion cards â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
           Positioned(
             bottom: 14,
             left: 0,
@@ -541,7 +552,7 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin {
                             borderRadius: 20,
                             child: Padding(
                               padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
-                              child: Text(_isLoadingPlaces ? 'Loading places in Samal…' : 'No places in this category yet',
+                              child: Text(_isLoadingPlaces ? 'Loading places in Samalâ€¦' : 'No places in this category yet',
                                   style: const TextStyle(color: _P.inkSoft, fontSize: 14, fontWeight: FontWeight.w600)),
                             ),
                           ),
@@ -572,7 +583,7 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin {
             ),
           ),
 
-          // ── Satellite Toggle FAB ────────────────────────────────
+          // â”€â”€ Satellite Toggle FAB â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
           Positioned(
             bottom: 235,
             right: 18,
@@ -586,7 +597,7 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin {
             ),
           ),
 
-          // ── My Location FAB ─────────────────────────────────────
+          // â”€â”€ My Location FAB â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
           Positioned(
             bottom: 175,
             right: 18,
@@ -602,7 +613,7 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin {
             ),
           ),
 
-          // ── Journey Control FAB ──────────────────────────────────
+          // â”€â”€ Journey Control FAB â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
           if (_routePolyline.isNotEmpty)
             Positioned(
               bottom: 175,
@@ -647,7 +658,7 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin {
                                 children: [
                                   Icon(Icons.celebration_rounded, color: Colors.white, size: 20),
                                   SizedBox(width: 10),
-                                  Text('Journey Complete! 🎉', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w700, fontSize: 15)),
+                                  Text('Journey Complete! ðŸŽ‰', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w700, fontSize: 15)),
                                 ],
                               ),
                               backgroundColor: const Color(0xFF4CAF50),
@@ -670,7 +681,7 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin {
                           children: [
                             const Icon(Icons.check_circle_rounded, color: Colors.white, size: 18),
                             const SizedBox(width: 6),
-                            Text('Stop ${_completedStops + 1} ✓', style: const TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.w800)),
+                            Text('Stop ${_completedStops + 1} âœ“', style: const TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.w800)),
                           ],
                         ),
                       ),
@@ -706,9 +717,9 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin {
     );
   }
 
-  // ═══════════════════════════════════════════════════════════════════
+  // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
   //  SUGGESTION CARD
-  // ═══════════════════════════════════════════════════════════════════
+  // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
   Widget _buildSuggestionCard(MapPlace place, int index) {
     return GestureDetector(
@@ -816,9 +827,9 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin {
     );
   }
 
-  // ═══════════════════════════════════════════════════════════════════
+  // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
   //  MARKER DETAIL POPUP
-  // ═══════════════════════════════════════════════════════════════════
+  // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
   void _showMarkerDetail(MapPlace place) {
     showModalBottomSheet(
@@ -967,9 +978,9 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin {
   }
 }
 
-// ═══════════════════════════════════════════════════════════════════
-//  GLASS PANEL — frosted backdrop-blur container, the deck's material
-// ═══════════════════════════════════════════════════════════════════
+// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+//  GLASS PANEL â€” frosted backdrop-blur container, the deck's material
+// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
 class _GlassPanel extends StatelessWidget {
   final Widget child;
@@ -1043,9 +1054,9 @@ class _GlassFabState extends State<_GlassFab> {
   }
 }
 
-// ═══════════════════════════════════════════════════════════════════
+// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 //  CATEGORY STYLE (Google Maps matching colors & icons)
-// ═══════════════════════════════════════════════════════════════════
+// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
 class CategoryStyle {
   final Color color;
@@ -1119,9 +1130,9 @@ class CategoryStyle {
   }
 }
 
-// ═══════════════════════════════════════════════════════════════════
+// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 //  GOOGLE MAPS STYLE POI MARKER (Icon badge + Colored Label)
-// ═══════════════════════════════════════════════════════════════════
+// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
 class _GoogleMapPoiMarker extends StatelessWidget {
   final MapPlace place;
@@ -1195,9 +1206,9 @@ class _GoogleMapPoiMarker extends StatelessWidget {
   }
 }
 
-// ═══════════════════════════════════════════════════════════════════
-//  DROPPING MARKER — staggered drop-in on first paint
-// ═══════════════════════════════════════════════════════════════════
+// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+//  DROPPING MARKER â€” staggered drop-in on first paint
+// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
 class _DroppingMarker extends StatelessWidget {
   final Widget child;
@@ -1234,9 +1245,9 @@ class _DroppingMarker extends StatelessWidget {
   }
 }
 
-// ═══════════════════════════════════════════════════════════════════
+// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 //  CAR MARKER (animated vehicle icon on route)
-// ═══════════════════════════════════════════════════════════════════
+// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
 class _CarMarker extends StatelessWidget {
   final AnimationController pulseController;
@@ -1280,9 +1291,9 @@ class _CarMarker extends StatelessWidget {
   }
 }
 
-// ═══════════════════════════════════════════════════════════════════
+// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 //  CURRENT LOCATION MARKER
-// ═══════════════════════════════════════════════════════════════════
+// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
 class _CurrentLocationMarker extends StatefulWidget {
   const _CurrentLocationMarker();
@@ -1338,4 +1349,3 @@ class _CurrentLocationMarkerState extends State<_CurrentLocationMarker> with Sin
     );
   }
 }
-

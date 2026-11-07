@@ -98,7 +98,7 @@ class _DestinationsTabState extends State<_DestinationsTab> {
             status: val ? 'active' : 'inactive',
             isVerified: d.isVerified,
             description: d.description,
-            entranceFee: d.entranceFee,
+            rawEntranceFee: d.rawEntranceFee,
             averageStayMinutes: d.averageStayMinutes,
           );
         }

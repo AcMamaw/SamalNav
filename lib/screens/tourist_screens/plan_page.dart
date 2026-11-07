@@ -238,12 +238,18 @@ class _PlanPageState extends State<PlanPage> with TickerProviderStateMixin {
         totalTimeHours: result.totalTimeHours,
         legDistances: result.legDistances,
         legTravelMins: result.legTravelMins,
+        feasibility: result.feasibility,
+        paretoFront: result.paretoFront.map((candidate) => ParetoCandidate(
+          stopOrder: candidate.stopOrder.map((index) => selected[index]).toList(),
+          fitness: candidate.fitness,
+        )).toList(),
+        selectionPolicy: result.selectionPolicy,
       );
 
       final polyline = mappedOrder
           .map((idx) => LatLng(_samalDestinations[idx].lat, _samalDestinations[idx].lng))
           .toList();
-      AppState.setActivePolyline(polyline);
+      AppState.setActiveRouteSegments([polyline]);
 
       if (!mounted) return;
       setState(() => _isOptimizing = false);
@@ -256,8 +262,8 @@ class _PlanPageState extends State<PlanPage> with TickerProviderStateMixin {
         ),
       ));
     } else {
-      // Build one combined destination list, but keep per-day grouping so
-      // the engine can optimize within each day's stops.
+      // Keep the date-specific assignments and optimize each day's order
+      // independently. The engine receives indexes into this compact list.
       final dayIndexLists = _dayDestinations.map((s) => s.toList()..sort()).toList();
       final allSelected = dayIndexLists.expand((l) => l).toSet().toList()..sort();
 
@@ -267,6 +273,12 @@ class _PlanPageState extends State<PlanPage> with TickerProviderStateMixin {
       }
 
       final dests = allSelected.map((i) => _samalDestinations[i]).toList();
+      final localIndexByGlobal = <int, int>{
+        for (var i = 0; i < allSelected.length; i++) allSelected[i]: i,
+      };
+      final assignedLocalDays = dayIndexLists
+          .map((day) => day.map((globalIndex) => localIndexByGlobal[globalIndex]!).toList())
+          .toList();
       final engine = MogaEngine(
         destinations: dests,
         tourHours: 9.0,
@@ -275,7 +287,7 @@ class _PlanPageState extends State<PlanPage> with TickerProviderStateMixin {
         generations: 100,
       );
 
-      final result = engine.optimizeItinerary(_tripDays);
+      final result = engine.optimizeAssignedItinerary(assignedLocalDays);
       final mappedDays = result.days.map((day) {
         return DayPlan(
           dayNumber: day.dayNumber,
@@ -284,16 +296,34 @@ class _PlanPageState extends State<PlanPage> with TickerProviderStateMixin {
           timeHours: day.timeHours,
           legDistances: day.legDistances,
           legTravelMins: day.legTravelMins,
+          feasibility: day.feasibility,
+          paretoFront: day.paretoFront.map((candidate) => ParetoCandidate(
+            stopOrder: candidate.stopOrder.map((index) => allSelected[index]).toList(),
+            fitness: candidate.fitness,
+          )).toList(),
         );
       }).toList();
 
-      final itineraryResult = ItineraryResult(days: mappedDays, totalDistanceKm: result.totalDistanceKm);
+      final itineraryResult = ItineraryResult(
+        days: mappedDays,
+        totalDistanceKm: result.totalDistanceKm,
+        requestedDayCount: result.requestedDayCount,
+        dayCountSatisfied: result.dayCountSatisfied,
+        violations: result.violations.map((violation) => DayViolation(
+          dayNumber: violation.dayNumber,
+          destinationIndex: allSelected[violation.destinationIndex],
+          requiredHours: violation.requiredHours,
+          availableHours: violation.availableHours,
+          overByHours: violation.overByHours,
+        )).toList(),
+      );
 
-      final polyline = mappedDays
-          .expand((d) => d.stopOrder)
-          .map((idx) => LatLng(_samalDestinations[idx].lat, _samalDestinations[idx].lng))
+      final routeSegments = mappedDays
+          .map((day) => day.stopOrder
+              .map((idx) => LatLng(_samalDestinations[idx].lat, _samalDestinations[idx].lng))
+              .toList())
           .toList();
-      AppState.setActivePolyline(polyline);
+      AppState.setActiveRouteSegments(routeSegments);
 
       if (!mounted) return;
       setState(() => _isOptimizing = false);

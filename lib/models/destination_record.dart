@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'price_info.dart';
 
 class DestinationRecord {
   final String id;
@@ -11,7 +12,9 @@ class DestinationRecord {
   final String status;
   final bool isVerified;
   final String? description;
-  final double entranceFee;
+  /// Raw amount from the row or sample fixture. It has no implied currency,
+  /// pricing basis, or verification status.
+  final Object? rawEntranceFee;
   final int averageStayMinutes;
   final String? imageUrl;
   final List<String> imageUrls;
@@ -29,7 +32,7 @@ class DestinationRecord {
     required this.status,
     required this.isVerified,
     this.description,
-    this.entranceFee = 0,
+    this.rawEntranceFee,
     this.averageStayMinutes = 60,
     this.imageUrl,
     this.imageUrls = const [],
@@ -43,11 +46,10 @@ class DestinationRecord {
   /// Visit hours for the MOGA planner (converts minutes → hours)
   double get visitHours => averageStayMinutes / 60.0;
 
-  /// Formatted entrance fee string (e.g. "₱150 entrance" or "Free")
-  String get formattedPrice {
-    if (entranceFee <= 0) return 'Free';
-    return '₱${entranceFee.toStringAsFixed(0)} entrance';
-  }
+  PriceInfo get entrancePrice => PriceInfo.fromRaw(rawEntranceFee);
+
+  /// Display text does not infer currency, pricing basis, or free admission.
+  String get formattedPrice => entrancePrice.displayLabel;
 
   /// Primary image URL with fallback
   String get primaryImageUrl {
@@ -131,7 +133,7 @@ class DestinationRecord {
       status: status,
       isVerified: json['is_verified'] as bool? ?? false,
       description: json['description'] as String?,
-      entranceFee: parseDouble(json['entrance_fee'], 0),
+      rawEntranceFee: json['entrance_fee'],
       averageStayMinutes: parseInt(json['average_stay_minutes'], 60),
       imageUrl: json['image_url'] as String?,
       imageUrls: parsedImageUrls,

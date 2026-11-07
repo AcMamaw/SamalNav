@@ -93,7 +93,7 @@ List<Place> _allPlaces() => [
     gradient: const [_P.blue, _P.deepNavy],
     description:
         'Crystal-clear waters and powdery white sand surrounded by lush coconut trees.',
-    price: '₱150 entrance',
+    price: 'Price not verified',
     owner: 'Isla Reta Resort Management',
     imageUrl: 'https://images.unsplash.com/photo-1544735716-392fe2489ffa?auto=format&fit=crop&w=600&q=80',
     galleryUrls: [
@@ -111,7 +111,7 @@ List<Place> _allPlaces() => [
     gradient: const [_P.skyBlue, _P.navy],
     description:
         'A long stretch of fine white sand with calm, shallow waters perfect for families.',
-    price: '₱100 entrance',
+    price: 'Price not verified',
     owner: 'Local Government Unit (LGU)',
     imageUrl: 'https://images.unsplash.com/photo-1507525428034-b723cf961d3e?auto=format&fit=crop&w=600&q=80',
   ),
@@ -123,7 +123,7 @@ List<Place> _allPlaces() => [
     gradient: const [_P.skyBlue, _P.blue],
     description:
         'Hidden cove with turquoise water, great for cliff diving and snorkeling.',
-    price: '₱80 entrance',
+    price: 'Price not verified',
     owner: 'Canibad Tourism Coop',
     imageUrl: 'https://images.unsplash.com/photo-1439066615861-d1af74d74000?auto=format&fit=crop&w=600&q=80',
     galleryUrls: [
@@ -140,7 +140,7 @@ List<Place> _allPlaces() => [
     gradient: const [_P.skyBlue, _P.navy],
     description:
         'Resort island with water sports, swimming pools, and beachfront cottages.',
-    price: '₱250 day pass',
+    price: 'Price not verified',
     owner: 'Paradise Island Park & Beach Resort',
     imageUrl: 'https://images.unsplash.com/photo-1506929562872-bb421503ef21?auto=format&fit=crop&w=600&q=80',
   ),
@@ -154,7 +154,7 @@ List<Place> _allPlaces() => [
     gradient: const [_P.blue, _P.navy],
     description:
         'Multi-tiered waterfall hidden in a lush tropical forest with natural rock pools.',
-    price: '₱50 entrance',
+    price: 'Price not verified',
     owner: 'Samal Ecotourism Board',
     imageUrl: 'https://images.unsplash.com/photo-1470071459604-3b5ec3a7fe05?auto=format&fit=crop&w=600&q=80',
   ),
@@ -166,7 +166,7 @@ List<Place> _allPlaces() => [
     gradient: const [_P.skyBlue, _P.blue],
     description:
         'Nature park with zip lines, hanging bridges, and forest trails.',
-    price: '₱350 all-access',
+    price: 'Price not verified',
     owner: 'Maxima Resort Group',
     imageUrl: 'https://images.unsplash.com/photo-1538964173425-93884d739596?auto=format&fit=crop&w=600&q=80',
     galleryUrls: [
@@ -183,7 +183,7 @@ List<Place> _allPlaces() => [
     gradient: const [_P.skyBlue, _P.deepNavy],
     description:
         'Mysterious cave system inside a dense forest. Bring a guide and flashlight.',
-    price: '₱100 guided tour',
+    price: 'Price not verified',
     owner: 'San Antonio Local Guides',
     imageUrl: 'https://images.unsplash.com/photo-1507163546605-a84d8ff1a3bb?auto=format&fit=crop&w=600&q=80',
   ),
@@ -197,7 +197,7 @@ List<Place> _allPlaces() => [
     gradient: const [_P.navy, _P.deepNavy],
     description:
         'A scenic hilltop with panoramic views of the Davao Gulf at sunrise.',
-    price: 'Free (guide tip)',
+    price: 'Price not verified',
     owner: 'Peñaplata Tourism Council',
     imageUrl: 'https://images.unsplash.com/photo-1454496522488-7a8e488e8606?auto=format&fit=crop&w=600&q=80',
   ),
@@ -209,7 +209,7 @@ List<Place> _allPlaces() => [
     gradient: const [_P.blue, _P.navy],
     description:
         'Mountain view deck overlooking the sea, perfect for sunset watching.',
-    price: '₱30 entrance',
+    price: 'Price not verified',
     owner: 'Bali-Bali Enterprises',
     imageUrl: 'https://images.unsplash.com/photo-1501785888041-af3ef285b470?auto=format&fit=crop&w=600&q=80',
   ),
@@ -223,7 +223,7 @@ List<Place> _allPlaces() => [
     gradient: const [_P.skyBlue, _P.deepNavy],
     description:
         'Secluded island paradise with pristine coral reefs and untouched beaches.',
-    price: '₱200 boat ride',
+    price: 'Price not verified',
     owner: 'Talikud LGU & Maritime',
     imageUrl: 'https://images.unsplash.com/photo-1505118380757-91f5f5632de0?auto=format&fit=crop&w=600&q=80',
   ),
@@ -235,7 +235,7 @@ List<Place> _allPlaces() => [
     gradient: const [_P.skyBlue, _P.navy],
     description:
         'A sandbar that appears only during low tide — a truly magical experience.',
-    price: '₱300 boat tour',
+    price: 'Price not verified',
     owner: 'Samal Boat Operators Assoc.',
     imageUrl: 'https://images.unsplash.com/photo-1473116763269-255448993f66?auto=format&fit=crop&w=600&q=80',
   ),
@@ -247,7 +247,7 @@ List<Place> _allPlaces() => [
     gradient: const [_P.skyBlue, _P.blue],
     description:
         'Underwater paradise with vibrant coral formations and tropical fish.',
-    price: '₱500 snorkel tour',
+    price: 'Price not verified',
     owner: 'Talikud Marine Sanctuary',
     imageUrl: 'https://images.unsplash.com/photo-1546026423-cc4642628d2b?auto=format&fit=crop&w=600&q=80',
   ),
