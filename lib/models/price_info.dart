@@ -19,8 +19,7 @@ class PriceInfo {
   });
 
   factory PriceInfo.fromRaw(Object? rawValue) {
-    if (rawValue == null ||
-        (rawValue is String && rawValue.trim().isEmpty)) {
+    if (rawValue == null || (rawValue is String && rawValue.trim().isEmpty)) {
       return PriceInfo._(
         rawValue: rawValue,
         amount: null,
@@ -49,8 +48,7 @@ class PriceInfo {
     );
   }
 
-  bool get hasRecordedAmount =>
-      status == PriceDataStatus.recordedUnverified;
+  bool get hasRecordedAmount => status == PriceDataStatus.recordedUnverified;
 
   /// No amount is currently approved as a reliable CARS budget input.
   bool get isEligibleForBudgetScoring => false;
@@ -66,8 +64,7 @@ class PriceInfo {
     }
   }
 
-  static String _formatAmount(double value) =>
-      value == value.roundToDouble()
-          ? value.toStringAsFixed(0)
-          : value.toString();
+  static String _formatAmount(double value) => value == value.roundToDouble()
+      ? value.toStringAsFixed(0)
+      : value.toString();
 }

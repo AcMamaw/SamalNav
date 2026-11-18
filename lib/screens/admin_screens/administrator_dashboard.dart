@@ -38,11 +38,7 @@ class _AdministratorDashboardState extends State<AdministratorDashboard> {
         RoleNavItem(icon: Icons.verified_rounded, label: 'Verify Locations'),
         RoleNavItem(icon: Icons.analytics_rounded, label: 'Reports'),
       ],
-      pages: const [
-        _DestinationsTab(),
-        _VerifyLocationsTab(),
-        _ReportsTab(),
-      ],
+      pages: const [_DestinationsTab(), _VerifyLocationsTab(), _ReportsTab()],
     );
   }
 }
@@ -93,13 +89,26 @@ class _DestinationsTabState extends State<_DestinationsTab> {
             location: d.location,
             lat: d.lat,
             lng: d.lng,
+            categoryId: d.categoryId,
             category: d.category,
             rating: d.rating,
+            ratingDataState: d.ratingDataState,
+            ratingVerification: d.ratingVerification,
+            ratingSource: d.ratingSource,
+            ratingRetrievedAt: d.ratingRetrievedAt,
+            ratingFreshUntil: d.ratingFreshUntil,
             status: val ? 'active' : 'inactive',
             isVerified: d.isVerified,
             description: d.description,
             rawEntranceFee: d.rawEntranceFee,
             averageStayMinutes: d.averageStayMinutes,
+            imageUrl: d.imageUrl,
+            imageUrls: d.imageUrls,
+            ownerName: d.ownerName,
+            operatingHours: d.operatingHours,
+            source: d.source,
+            hasUsableCoordinates: d.hasUsableCoordinates,
+            hasUsableVisitDuration: d.hasUsableVisitDuration,
           );
         }
         return d;
@@ -118,7 +127,9 @@ class _DestinationsTabState extends State<_DestinationsTab> {
 
   @override
   Widget build(BuildContext context) {
-    if (_loading) return const Center(child: CircularProgressIndicator(color: _P.blue));
+    if (_loading) {
+      return const Center(child: CircularProgressIndicator(color: _P.blue));
+    }
     if (_error != null) {
       return Center(
         child: Column(
@@ -147,7 +158,11 @@ class _DestinationsTabState extends State<_DestinationsTab> {
               children: [
                 const Text(
                   'Control Active / Inactive Destinations',
-                  style: TextStyle(color: _P.deepNavy, fontSize: 24, fontWeight: FontWeight.w900),
+                  style: TextStyle(
+                    color: _P.deepNavy,
+                    fontSize: 24,
+                    fontWeight: FontWeight.w900,
+                  ),
                 ),
                 const SizedBox(height: 20),
                 Row(
@@ -174,42 +189,61 @@ class _DestinationsTabState extends State<_DestinationsTab> {
                 const SizedBox(height: 24),
                 const DashboardSectionHeader(title: 'All Destinations'),
                 const SizedBox(height: 12),
-                ..._destinations.map((dest) => Container(
-                      margin: const EdgeInsets.only(bottom: 10),
-                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                      decoration: BoxDecoration(
-                        color: Colors.white,
-                        borderRadius: BorderRadius.circular(16),
-                        border: Border.all(
-                          color: dest.isActive
-                              ? const Color(0xFF43A047).withValues(alpha: 0.3)
-                              : Colors.redAccent.withValues(alpha: 0.2),
+                ..._destinations.map(
+                  (dest) => Container(
+                    margin: const EdgeInsets.only(bottom: 10),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 12,
+                    ),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(16),
+                      border: Border.all(
+                        color: dest.isActive
+                            ? const Color(0xFF43A047).withValues(alpha: 0.3)
+                            : Colors.redAccent.withValues(alpha: 0.2),
+                      ),
+                    ),
+                    child: Row(
+                      children: [
+                        Icon(
+                          dest.isActive
+                              ? Icons.place_rounded
+                              : Icons.place_outlined,
+                          color: dest.isActive ? _P.blue : _P.inkSoft,
                         ),
-                      ),
-                      child: Row(
-                        children: [
-                          Icon(
-                            dest.isActive ? Icons.place_rounded : Icons.place_outlined,
-                            color: dest.isActive ? _P.blue : _P.inkSoft,
+                        const SizedBox(width: 14),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                dest.name,
+                                style: const TextStyle(
+                                  color: _P.deepNavy,
+                                  fontWeight: FontWeight.w700,
+                                ),
+                              ),
+                              Text(
+                                '${dest.category} · ${dest.location}',
+                                style: const TextStyle(
+                                  color: _P.inkSoft,
+                                  fontSize: 12,
+                                ),
+                              ),
+                            ],
                           ),
-                          const SizedBox(width: 14),
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(dest.name, style: const TextStyle(color: _P.deepNavy, fontWeight: FontWeight.w700)),
-                                Text('${dest.category} · ${dest.location}', style: const TextStyle(color: _P.inkSoft, fontSize: 12)),
-                              ],
-                            ),
-                          ),
-                          Switch(
-                            value: dest.isActive,
-                            activeThumbColor: _P.blue,
-                            onChanged: (val) => _toggle(dest, val),
-                          ),
-                        ],
-                      ),
-                    )),
+                        ),
+                        Switch(
+                          value: dest.isActive,
+                          activeThumbColor: _P.blue,
+                          onChanged: (val) => _toggle(dest, val),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
               ],
             ),
           ),
@@ -250,7 +284,9 @@ class _VerifyLocationsTabState extends State<_VerifyLocationsTab> {
 
   @override
   Widget build(BuildContext context) {
-    if (_loading) return const Center(child: CircularProgressIndicator(color: _P.blue));
+    if (_loading) {
+      return const Center(child: CircularProgressIndicator(color: _P.blue));
+    }
 
     return RefreshIndicator(
       onRefresh: _load,
@@ -266,7 +302,11 @@ class _VerifyLocationsTabState extends State<_VerifyLocationsTab> {
               children: [
                 const Text(
                   'Verify Location Information',
-                  style: TextStyle(color: _P.deepNavy, fontSize: 24, fontWeight: FontWeight.w900),
+                  style: TextStyle(
+                    color: _P.deepNavy,
+                    fontSize: 24,
+                    fontWeight: FontWeight.w900,
+                  ),
                 ),
                 const SizedBox(height: 20),
                 if (_pending.isEmpty)
@@ -284,55 +324,93 @@ class _VerifyLocationsTabState extends State<_VerifyLocationsTab> {
                     ),
                   )
                 else
-                  ..._pending.map((loc) => Container(
-                        margin: const EdgeInsets.only(bottom: 12),
-                        padding: const EdgeInsets.all(18),
-                        decoration: BoxDecoration(
-                          color: Colors.white,
-                          borderRadius: BorderRadius.circular(16),
-                          boxShadow: [BoxShadow(color: _P.deepNavy.withValues(alpha: 0.05), blurRadius: 12)],
-                        ),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(loc.name, style: const TextStyle(color: _P.deepNavy, fontWeight: FontWeight.w800, fontSize: 16)),
-                            const SizedBox(height: 8),
-                            Text('${loc.address} · ${loc.category}', style: const TextStyle(color: _P.inkSoft, fontSize: 12)),
-                            Text('${loc.lat}, ${loc.lng}', style: const TextStyle(color: _P.inkSoft, fontSize: 12)),
-                            const SizedBox(height: 14),
-                            Row(
-                              children: [
-                                Expanded(
-                                  child: OutlinedButton.icon(
-                                    onPressed: () async {
-                                      await AdministratorService.rejectVerification(loc);
-                                      _load();
-                                    },
-                                    icon: const Icon(Icons.close_rounded, size: 18),
-                                    label: const Text('Reject'),
-                                    style: OutlinedButton.styleFrom(foregroundColor: Colors.redAccent),
-                                  ),
-                                ),
-                                const SizedBox(width: 10),
-                                Expanded(
-                                  child: ElevatedButton.icon(
-                                    onPressed: () async {
-                                      await AdministratorService.approveVerification(loc);
-                                      _load();
-                                    },
-                                    icon: const Icon(Icons.check_rounded, size: 18),
-                                    label: const Text('Verify'),
-                                    style: ElevatedButton.styleFrom(
-                                      backgroundColor: const Color(0xFF43A047),
-                                      foregroundColor: Colors.white,
-                                    ),
-                                  ),
-                                ),
-                              ],
+                  ..._pending.map(
+                    (loc) => Container(
+                      margin: const EdgeInsets.only(bottom: 12),
+                      padding: const EdgeInsets.all(18),
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(16),
+                        boxShadow: [
+                          BoxShadow(
+                            color: _P.deepNavy.withValues(alpha: 0.05),
+                            blurRadius: 12,
+                          ),
+                        ],
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            loc.name,
+                            style: const TextStyle(
+                              color: _P.deepNavy,
+                              fontWeight: FontWeight.w800,
+                              fontSize: 16,
                             ),
-                          ],
-                        ),
-                      )),
+                          ),
+                          const SizedBox(height: 8),
+                          Text(
+                            '${loc.address} · ${loc.category}',
+                            style: const TextStyle(
+                              color: _P.inkSoft,
+                              fontSize: 12,
+                            ),
+                          ),
+                          Text(
+                            '${loc.lat}, ${loc.lng}',
+                            style: const TextStyle(
+                              color: _P.inkSoft,
+                              fontSize: 12,
+                            ),
+                          ),
+                          const SizedBox(height: 14),
+                          Row(
+                            children: [
+                              Expanded(
+                                child: OutlinedButton.icon(
+                                  onPressed: () async {
+                                    await AdministratorService.rejectVerification(
+                                      loc,
+                                    );
+                                    _load();
+                                  },
+                                  icon: const Icon(
+                                    Icons.close_rounded,
+                                    size: 18,
+                                  ),
+                                  label: const Text('Reject'),
+                                  style: OutlinedButton.styleFrom(
+                                    foregroundColor: Colors.redAccent,
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(width: 10),
+                              Expanded(
+                                child: ElevatedButton.icon(
+                                  onPressed: () async {
+                                    await AdministratorService.approveVerification(
+                                      loc,
+                                    );
+                                    _load();
+                                  },
+                                  icon: const Icon(
+                                    Icons.check_rounded,
+                                    size: 18,
+                                  ),
+                                  label: const Text('Verify'),
+                                  style: ElevatedButton.styleFrom(
+                                    backgroundColor: const Color(0xFF43A047),
+                                    foregroundColor: Colors.white,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
               ],
             ),
           ),
@@ -373,7 +451,9 @@ class _ReportsTabState extends State<_ReportsTab> {
 
   @override
   Widget build(BuildContext context) {
-    if (_loading) return const Center(child: CircularProgressIndicator(color: _P.blue));
+    if (_loading) {
+      return const Center(child: CircularProgressIndicator(color: _P.blue));
+    }
 
     return RefreshIndicator(
       onRefresh: _load,
@@ -389,11 +469,17 @@ class _ReportsTabState extends State<_ReportsTab> {
               children: [
                 const Text(
                   'Tourism Reports',
-                  style: TextStyle(color: _P.deepNavy, fontSize: 24, fontWeight: FontWeight.w900),
+                  style: TextStyle(
+                    color: _P.deepNavy,
+                    fontSize: 24,
+                    fontWeight: FontWeight.w900,
+                  ),
                 ),
                 const SizedBox(height: 20),
                 GridView.count(
-                  crossAxisCount: MediaQuery.of(context).size.width > 500 ? 2 : 1,
+                  crossAxisCount: MediaQuery.of(context).size.width > 500
+                      ? 2
+                      : 1,
                   shrinkWrap: true,
                   physics: const NeverScrollableScrollPhysics(),
                   mainAxisSpacing: 12,

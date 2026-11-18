@@ -36,6 +36,7 @@ CarsCandidate testCandidate({
   Set<String> supported = const {'step_free'},
   Set<String> required = const {'step_free'},
   Map<CarsCriterion, double?>? scores,
+  CarsRawContext? rawContext,
 }) => CarsCandidate(
   destinationId: id,
   destinationName: name,
@@ -47,12 +48,13 @@ CarsCandidate testCandidate({
   requiredSuitabilityCodes: required,
   criterionScores:
       scores ?? {for (final criterion in CarsCriterion.values) criterion: 80.0},
+  rawContext: rawContext,
 );
 
 void main() {
   group('CarsRecommendationEngine', () {
     test('calculates the weighted recommendation score and contributions', () {
-      final scores = {
+      final scores = <CarsCriterion, double?>{
         for (final criterion in CarsCriterion.values) criterion: 80.0,
       };
       final result = testEngine().rank([testCandidate(scores: scores)]);
@@ -171,6 +173,30 @@ void main() {
         expect(result.excluded.single.missingCriteria, ['weatherSuitability']);
       },
     );
+
+    test('raw public rating alone cannot satisfy the CARS rating criterion', () {
+      final scores = <CarsCriterion, double?>{
+        for (final criterion in CarsCriterion.values) criterion: 75.0,
+      };
+      scores[CarsCriterion.publicDestinationRating] = null;
+
+      final result = testEngine().rank([
+        testCandidate(
+          scores: scores,
+          rawContext: CarsRawContext(
+            publicRating: 4.8,
+            publicRatingSource: 'unverified test value',
+          ),
+        ),
+      ]);
+
+      expect(result.ranked, isEmpty);
+      expect(result.excluded.single.outcome, CarsCandidateOutcome.insufficientData);
+      expect(result.excluded.single.recommendationScore, isNull);
+      expect(result.excluded.single.missingCriteria, [
+        CarsCriterion.publicDestinationRating.name,
+      ]);
+    });
 
     test(
       'rejects an invalid supplied score even when another score is missing',

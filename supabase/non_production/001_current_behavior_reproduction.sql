@@ -1,0 +1,51 @@
+-- Task 09B-H-H — current-production-behavior reproduction scaffold
+-- Version: 001
+-- Status: BLOCKED / NON-EXECUTABLE pending exact definition evidence and separate owner approval.
+--
+-- Target allowlist (operator must independently verify in the Supabase dashboard):
+--   Project: SamalNav-NonProduction
+--   Reference: iwzyasdanesaaxxjujxr
+--   Region: ap-southeast-2
+-- Prohibited target: production reference kmypkzusxxlyojkzrrtn.
+-- Run scripts/non_production/Assert-NonProductionTarget.ps1 with identity values
+-- copied from the verified dashboard before a future, separately authorized setup.
+-- This SQL file intentionally contains comments only. It has no project-reference
+-- introspection mechanism compatible with the SQL Editor evidence available here.
+-- Do not execute this scaffold as setup; it creates no objects.
+--
+-- Current-behavior object set identified by H-G, pending exact DDL:
+--   public.profiles, public.establishments, public.destinations,
+--   public.itineraries, public.itinerary_stops, public.reservations,
+--   public.audit_logs, and only required supporting structures.
+--
+-- Omitted until evidence is complete:
+--   * All CREATE TABLE statements: H-G/F identify columns and selected keys/FKs,
+--     but the reports do not include the complete exact per-column PostgreSQL
+--     type, nullability, default, identity/generated, and constraint definitions.
+--   * RLS policies and grants: H-A policy summaries are not the complete exact
+--     policy/grant output; Query 2/3 excerpts are truncated. Do not reconstruct
+--     policy expressions, role targets, or ACLs from summaries.
+--   * current_user_role(): H-B records behavior/security attributes but this
+--     scaffold does not contain its complete verified function definition.
+--   * Owner-verification characterization copy: do not author a body until the
+--     complete supplied function definition and required establishment columns,
+--     defaults, and ACL are available. Any future copy must have a distinct name
+--     and be constrained to synthetic non-production establishments only.
+--   * activities, events, and notifications: omit until exact definitions and
+--     policy/privilege requirements for SEC-03 are available.
+--   * reservations FKs: both itinerary FK names and ON DELETE SET NULL are
+--     confirmed, but all remaining reservation FK/type/check definitions are
+--     not present here; do not create a partial table that implies fidelity.
+--
+-- Confirmed facts retained for the next reviewed revision (not executable DDL):
+--   profiles.id -> auth.users.id (ON DELETE CASCADE reported);
+--   establishments.owner_id -> profiles.id and UNIQUE(owner_id);
+--   itineraries.tourist_id -> profiles.id (ON DELETE CASCADE reported);
+--   itinerary_stops references itineraries and destinations;
+--   reservations_itinerary_fk and reservations_itinerary_id_fkey both reference
+--   itineraries(id) with ON DELETE SET NULL;
+--   audit_logs has an id primary key only; the nine inspected relations were
+--   reported RLS-enabled and not forced.
+-- These facts are owner-supplied evidence, not independently verified here.
+-- No Auth users, fixtures, candidate security objects, or migration history
+-- are created by this scaffold.

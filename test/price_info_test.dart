@@ -27,10 +27,7 @@ void main() {
       expect(price.amount, 125.5);
       expect(price.status, PriceDataStatus.recordedUnverified);
       expect(price.displayLabel, 'Unverified amount: 125.5');
-      expect(
-        price.displayLabel,
-        isNot(contains(String.fromCharCode(0x20B1))),
-      );
+      expect(price.displayLabel, isNot(contains(String.fromCharCode(0x20B1))));
       expect(price.isEligibleForBudgetScoring, isFalse);
     });
 
@@ -49,14 +46,11 @@ void main() {
     test('unverified state cannot be upgraded by parsing positive values', () {
       final price = PriceInfo.fromRaw(999);
 
-      expect(
-        PriceDataStatus.values,
-        [
-          PriceDataStatus.unknown,
-          PriceDataStatus.recordedUnverified,
-          PriceDataStatus.invalidUnverified,
-        ],
-      );
+      expect(PriceDataStatus.values, [
+        PriceDataStatus.unknown,
+        PriceDataStatus.recordedUnverified,
+        PriceDataStatus.invalidUnverified,
+      ]);
       expect(price.isEligibleForBudgetScoring, isFalse);
     });
   });

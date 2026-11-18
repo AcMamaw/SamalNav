@@ -12,7 +12,10 @@ class FavoriteItem {
   final String id; // Supabase row ID for deletion
   final String name;
   final String location;
-  final double rating;
+  /// Raw valid snapshot is retained for compatibility; display availability
+  /// requires explicit rating verification metadata.
+  final double? rating;
+  final bool ratingAvailable;
   final String category;
   final List<Color> gradient;
   bool isLiked;
@@ -22,10 +25,22 @@ class FavoriteItem {
     required this.name,
     required this.location,
     required this.rating,
+    this.ratingAvailable = false,
     required this.category,
     required this.gradient,
     this.isLiked = true,
   });
+
+  static double? parseValidRating(Object? raw) {
+    final value = switch (raw) {
+      num number => number.toDouble(),
+      String text => double.tryParse(text),
+      _ => null,
+    };
+    return value != null && value.isFinite && value >= 0 && value <= 5
+        ? value
+        : null;
+  }
 
   // Map category → gradient colors
   static List<Color> gradientForCategory(String category) {
@@ -104,11 +119,13 @@ class _FavoritePageState extends State<FavoritePage> {
 
       final List<FavoriteItem> loaded = (data as List).map((row) {
         final category = (row['category'] as String?) ?? 'Other';
+        final rating = FavoriteItem.parseValidRating(row['rating']);
         return FavoriteItem(
           id: row['id'].toString(),
           name: row['place_name'] as String? ?? '',
           location: row['location'] as String? ?? '',
-          rating: (row['rating'] as num?)?.toDouble() ?? 0.0,
+          rating: rating,
+          ratingAvailable: rating != null && row['rating_is_verified'] == true,
           category: category,
           gradient: FavoriteItem.gradientForCategory(category),
         );
@@ -642,9 +659,12 @@ class _FavoritePageState extends State<FavoritePage> {
                               decoration: BoxDecoration(color: Colors.white.withValues(alpha: 0.2), borderRadius: BorderRadius.circular(12)),
                               child: Row(
                                 children: [
-                                  const Icon(Icons.star_rounded, color: Color(0xFFFBBF24), size: 14),
-                                  const SizedBox(width: 3),
-                                  Text(item.rating.toStringAsFixed(1), style: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.bold)),
+                                  if (item.ratingAvailable && item.rating != null) ...[
+                                    const Icon(Icons.star_rounded, color: Color(0xFFFBBF24), size: 14),
+                                    const SizedBox(width: 3),
+                                    Text(item.rating!.toStringAsFixed(1), style: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.bold)),
+                                  ] else
+                                    const Text('Rating unavailable', style: TextStyle(color: Colors.white, fontSize: 9)),
                                 ],
                               ),
                             ),
@@ -742,12 +762,15 @@ class _FavoritePageState extends State<FavoritePage> {
                         const SizedBox(height: 6),
                         Row(
                           children: [
-                            const Icon(Icons.star_rounded, color: Color(0xFFFBBF24), size: 13),
-                            const SizedBox(width: 3),
-                            Text(
-                              item.rating.toStringAsFixed(1),
-                              style: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.bold),
-                            ),
+                            if (item.ratingAvailable && item.rating != null) ...[
+                              const Icon(Icons.star_rounded, color: Color(0xFFFBBF24), size: 13),
+                              const SizedBox(width: 3),
+                              Text(
+                                item.rating!.toStringAsFixed(1),
+                                style: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.bold),
+                              ),
+                            ] else
+                              const Text('Rating unavailable', style: TextStyle(color: Colors.white70, fontSize: 9)),
                           ],
                         ),
                       ],

@@ -16,8 +16,8 @@ typedef _P = AppPalette;
 
 class MapPlace {
   final String name;
-  final String location;  
-  final double rating;
+  final String location;
+  final double? rating;
   final String category;
   final LatLng coords;
   final List<Color> gradient;
@@ -67,7 +67,7 @@ class MapPlace {
     return MapPlace(
       name: rec.name,
       location: rec.location,
-      rating: rec.rating,
+      rating: rec.availableRating,
       category: rec.category,
       coords: LatLng(rec.lat, rec.lng),
       gradient: grad,
@@ -84,12 +84,28 @@ class MapPlace {
 
 const _categories = <Map<String, dynamic>>[
   {'name': 'All', 'icon': Icons.explore_rounded, 'color': Color(0xFF0077B6)},
-  {'name': 'Beach', 'icon': Icons.beach_access_rounded, 'color': Color(0xFF00897B)},
+  {
+    'name': 'Beach',
+    'icon': Icons.beach_access_rounded,
+    'color': Color(0xFF00897B),
+  },
   {'name': 'Resort', 'icon': Icons.villa_rounded, 'color': Color(0xFFE91E63)},
-  {'name': 'Falls', 'icon': Icons.water_drop_rounded, 'color': Color(0xFF7E57C2)},
-  {'name': 'Mountain', 'icon': Icons.landscape_rounded, 'color': Color(0xFF2E7D32)},
+  {
+    'name': 'Falls',
+    'icon': Icons.water_drop_rounded,
+    'color': Color(0xFF7E57C2),
+  },
+  {
+    'name': 'Mountain',
+    'icon': Icons.landscape_rounded,
+    'color': Color(0xFF2E7D32),
+  },
   {'name': 'Island', 'icon': Icons.sailing_rounded, 'color': Color(0xFF0288D1)},
-  {'name': 'Historical', 'icon': Icons.account_balance_rounded, 'color': Color(0xFF8D6E63)},
+  {
+    'name': 'Historical',
+    'icon': Icons.account_balance_rounded,
+    'color': Color(0xFF8D6E63),
+  },
   {'name': 'Hotel', 'icon': Icons.hotel_rounded, 'color': Color(0xFFD81B60)},
 ];
 
@@ -201,7 +217,9 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin {
     if (AppState.hasActiveRoute && AppState.activeRoutePolyline != null) {
       _routePolyline = AppState.activeRoutePolyline!;
       _routeSegments = AppState.activeRouteSegments.isNotEmpty
-          ? AppState.activeRouteSegments.map((segment) => List<LatLng>.from(segment)).toList()
+          ? AppState.activeRouteSegments
+                .map((segment) => List<LatLng>.from(segment))
+                .toList()
           : [_routePolyline];
 
       if (_routePolyline.isNotEmpty) {
@@ -216,40 +234,51 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin {
     final polylines = <Polyline>[];
     var completedOffset = 0;
     for (final segment in _routeSegments) {
-      final completedInSegment = (_completedStops - completedOffset)
-          .clamp(0, segment.length);
+      final completedInSegment = (_completedStops - completedOffset).clamp(
+        0,
+        segment.length,
+      );
 
       if (!_journeyStarted) {
         if (segment.length >= 2) {
-          polylines.add(Polyline(
-            points: segment,
-            color: _P.blue,
-            strokeWidth: 4.0,
-            borderColor: Colors.white,
-            borderStrokeWidth: 1.5,
-          ));
+          polylines.add(
+            Polyline(
+              points: segment,
+              color: _P.blue,
+              strokeWidth: 4.0,
+              borderColor: Colors.white,
+              borderStrokeWidth: 1.5,
+            ),
+          );
         }
       } else {
         if (completedInSegment >= 2) {
-          polylines.add(Polyline(
-            points: segment.sublist(0, completedInSegment),
-            color: const Color(0xFF4CAF50),
-            strokeWidth: 5.0,
-            borderColor: Colors.white,
-            borderStrokeWidth: 1.5,
-          ));
-        }
-        if (completedInSegment < segment.length) {
-          final remainingStart = (completedInSegment - 1).clamp(0, segment.length - 1);
-          final remaining = segment.sublist(remainingStart);
-          if (remaining.length >= 2) {
-            polylines.add(Polyline(
-              points: remaining,
-              color: const Color(0xFFE53935),
+          polylines.add(
+            Polyline(
+              points: segment.sublist(0, completedInSegment),
+              color: const Color(0xFF4CAF50),
               strokeWidth: 5.0,
               borderColor: Colors.white,
               borderStrokeWidth: 1.5,
-            ));
+            ),
+          );
+        }
+        if (completedInSegment < segment.length) {
+          final remainingStart = (completedInSegment - 1).clamp(
+            0,
+            segment.length - 1,
+          );
+          final remaining = segment.sublist(remainingStart);
+          if (remaining.length >= 2) {
+            polylines.add(
+              Polyline(
+                points: remaining,
+                color: const Color(0xFFE53935),
+                strokeWidth: 5.0,
+                borderColor: Colors.white,
+                borderStrokeWidth: 1.5,
+              ),
+            );
           }
         }
       }
@@ -261,8 +290,10 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin {
   List<MapPlace> get _filteredPlaces {
     final q = _searchController.text.trim().toLowerCase();
     return _allPlaces.where((p) {
-      final matchesCategory = _selectedCategory == 'All' || p.category == _selectedCategory;
-      final matchesQuery = q.isEmpty ||
+      final matchesCategory =
+          _selectedCategory == 'All' || p.category == _selectedCategory;
+      final matchesQuery =
+          q.isEmpty ||
           p.name.toLowerCase().contains(q) ||
           p.location.toLowerCase().contains(q) ||
           p.category.toLowerCase().contains(q);
@@ -345,18 +376,20 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin {
             children: [
               if (_isSatelliteMode) ...[
                 TileLayer(
-                  urlTemplate: 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
+                  urlTemplate:
+                      'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
                   userAgentPackageName: 'com.samal.nav',
                   maxZoom: 19,
                 ),
                 TileLayer(
-                  urlTemplate: 'https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Transportation/MapServer/tile/{z}/{y}/{x}',
+                  urlTemplate:
+                      'https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Transportation/MapServer/tile/{z}/{y}/{x}',
                   userAgentPackageName: 'com.samal.nav',
                   maxZoom: 19,
                 ),
               ] else
                 TileLayer(
-                  urlTemplate: 'https://basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}@2x.png',
+                  urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
                   userAgentPackageName: 'com.samal.nav',
                   maxZoom: 19,
                 ),
@@ -372,7 +405,8 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin {
                   ..._filteredPlaces.asMap().entries.map((entry) {
                     final i = entry.key;
                     final place = entry.value;
-                    final isFocused = _focusedPlaceIndex != null &&
+                    final isFocused =
+                        _focusedPlaceIndex != null &&
                         _filteredPlaces[_focusedPlaceIndex!] == place;
                     return Marker(
                       point: place.coords,
@@ -412,7 +446,10 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin {
                   if (_journeyStarted && _routePolyline.isNotEmpty)
                     Marker(
                       point: _completedStops < _routePolyline.length
-                          ? _routePolyline[_completedStops.clamp(0, _routePolyline.length - 1)]
+                          ? _routePolyline[_completedStops.clamp(
+                              0,
+                              _routePolyline.length - 1,
+                            )]
                           : _routePolyline.last,
                       width: 56,
                       height: 56,
@@ -438,18 +475,35 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin {
                           children: [
                             // Search row
                             Padding(
-                              padding: const EdgeInsets.fromLTRB(16, 14, 12, 12),
+                              padding: const EdgeInsets.fromLTRB(
+                                16,
+                                14,
+                                12,
+                                12,
+                              ),
                               child: Row(
                                 children: [
-                                  const Icon(Icons.search_rounded, color: _P.navy, size: 21),
+                                  const Icon(
+                                    Icons.search_rounded,
+                                    color: _P.navy,
+                                    size: 21,
+                                  ),
                                   const SizedBox(width: 11),
                                   Expanded(
                                     child: TextField(
                                       controller: _searchController,
-                                      style: const TextStyle(color: _P.deepNavy, fontSize: 15, fontWeight: FontWeight.w500),
+                                      style: const TextStyle(
+                                        color: _P.deepNavy,
+                                        fontSize: 15,
+                                        fontWeight: FontWeight.w500,
+                                      ),
                                       decoration: const InputDecoration(
                                         hintText: 'Search places in Samalâ€¦',
-                                        hintStyle: TextStyle(color: _P.inkSoft, fontSize: 14, fontWeight: FontWeight.w500),
+                                        hintStyle: TextStyle(
+                                          color: _P.inkSoft,
+                                          fontSize: 14,
+                                          fontWeight: FontWeight.w500,
+                                        ),
                                         border: InputBorder.none,
                                         isCollapsed: true,
                                       ),
@@ -459,28 +513,42 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin {
                                   Container(
                                     padding: const EdgeInsets.all(8),
                                     decoration: BoxDecoration(
-                                      gradient: const LinearGradient(colors: [_P.blue, _P.deepNavy]),
+                                      gradient: const LinearGradient(
+                                        colors: [_P.blue, _P.deepNavy],
+                                      ),
                                       borderRadius: BorderRadius.circular(12),
                                     ),
-                                    child: const Icon(Icons.tune_rounded, color: Colors.white, size: 17),
+                                    child: const Icon(
+                                      Icons.tune_rounded,
+                                      color: Colors.white,
+                                      size: 17,
+                                    ),
                                   ),
                                 ],
                               ),
                             ),
-                            Container(height: 1, color: _P.deepNavy.withValues(alpha: 0.06)),
+                            Container(
+                              height: 1,
+                              color: _P.deepNavy.withValues(alpha: 0.06),
+                            ),
                             // Category chips, inside the same glass panel
                             SizedBox(
                               height: 50,
                               child: ListView.separated(
                                 scrollDirection: Axis.horizontal,
-                                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 9),
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 14,
+                                  vertical: 9,
+                                ),
                                 itemCount: _categories.length,
-                                separatorBuilder: (_, _) => const SizedBox(width: 8),
+                                separatorBuilder: (_, _) =>
+                                    const SizedBox(width: 8),
                                 itemBuilder: (_, i) {
                                   final cat = _categories[i];
                                   final name = cat['name'] as String;
                                   final icon = cat['icon'] as IconData;
-                                  final color = (cat['color'] as Color?) ?? _P.blue;
+                                  final color =
+                                      (cat['color'] as Color?) ?? _P.blue;
                                   final selected = _selectedCategory == name;
                                   return GestureDetector(
                                     onTap: () => setState(() {
@@ -488,9 +556,14 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin {
                                       _focusedPlaceIndex = null;
                                     }),
                                     child: AnimatedContainer(
-                                      duration: const Duration(milliseconds: 250),
+                                      duration: const Duration(
+                                        milliseconds: 250,
+                                      ),
                                       curve: Curves.easeOutCubic,
-                                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 14,
+                                        vertical: 8,
+                                      ),
                                       decoration: BoxDecoration(
                                         color: selected
                                             ? color
@@ -499,7 +572,9 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin {
                                         boxShadow: selected
                                             ? [
                                                 BoxShadow(
-                                                  color: color.withValues(alpha: 0.35),
+                                                  color: color.withValues(
+                                                    alpha: 0.35,
+                                                  ),
                                                   blurRadius: 8,
                                                   offset: const Offset(0, 2),
                                                 ),
@@ -509,12 +584,20 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin {
                                       child: Row(
                                         mainAxisSize: MainAxisSize.min,
                                         children: [
-                                          Icon(icon, color: selected ? Colors.white : color, size: 15),
+                                          Icon(
+                                            icon,
+                                            color: selected
+                                                ? Colors.white
+                                                : color,
+                                            size: 15,
+                                          ),
                                           const SizedBox(width: 6),
                                           Text(
                                             name,
                                             style: TextStyle(
-                                              color: selected ? Colors.white : _P.deepNavy,
+                                              color: selected
+                                                  ? Colors.white
+                                                  : _P.deepNavy,
                                               fontWeight: FontWeight.w700,
                                               fontSize: 12.5,
                                             ),
@@ -551,9 +634,20 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin {
                           child: _GlassPanel(
                             borderRadius: 20,
                             child: Padding(
-                              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
-                              child: Text(_isLoadingPlaces ? 'Loading places in Samalâ€¦' : 'No places in this category yet',
-                                  style: const TextStyle(color: _P.inkSoft, fontSize: 14, fontWeight: FontWeight.w600)),
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 24,
+                                vertical: 14,
+                              ),
+                              child: Text(
+                                _isLoadingPlaces
+                                    ? 'Loading places in Samalâ€¦'
+                                    : 'No places in this category yet',
+                                style: const TextStyle(
+                                  color: _P.inkSoft,
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
                             ),
                           ),
                         )
@@ -561,7 +655,8 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin {
                           controller: _cardController,
                           itemCount: _filteredPlaces.length,
                           padEnds: true,
-                          onPageChanged: (i) => setState(() => _focusedPlaceIndex = i),
+                          onPageChanged: (i) =>
+                              setState(() => _focusedPlaceIndex = i),
                           itemBuilder: (_, i) {
                             final delta = (_cardPage - i).abs().clamp(0.0, 1.0);
                             final scale = 1.0 - (delta * 0.12);
@@ -571,8 +666,13 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin {
                               child: Opacity(
                                 opacity: opacity,
                                 child: Padding(
-                                  padding: const EdgeInsets.symmetric(horizontal: 7),
-                                  child: _buildSuggestionCard(_filteredPlaces[i], i),
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 7,
+                                  ),
+                                  child: _buildSuggestionCard(
+                                    _filteredPlaces[i],
+                                    i,
+                                  ),
                                 ),
                               ),
                             );
@@ -628,23 +728,48 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin {
                         _completedStops = 0;
                       }),
                       child: Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 16,
+                          vertical: 12,
+                        ),
                         decoration: BoxDecoration(
-                          gradient: const LinearGradient(colors: [Color(0xFF4CAF50), Color(0xFF388E3C)]),
+                          gradient: const LinearGradient(
+                            colors: [Color(0xFF4CAF50), Color(0xFF388E3C)],
+                          ),
                           borderRadius: BorderRadius.circular(50),
-                          boxShadow: [BoxShadow(color: const Color(0xFF4CAF50).withValues(alpha: 0.4), blurRadius: 12, offset: const Offset(0, 4))],
+                          boxShadow: [
+                            BoxShadow(
+                              color: const Color(
+                                0xFF4CAF50,
+                              ).withValues(alpha: 0.4),
+                              blurRadius: 12,
+                              offset: const Offset(0, 4),
+                            ),
+                          ],
                         ),
                         child: const Row(
                           mainAxisSize: MainAxisSize.min,
                           children: [
-                            Icon(Icons.play_arrow_rounded, color: Colors.white, size: 20),
+                            Icon(
+                              Icons.play_arrow_rounded,
+                              color: Colors.white,
+                              size: 20,
+                            ),
                             SizedBox(width: 6),
-                            Text('Start Journey', style: TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.w800)),
+                            Text(
+                              'Start Journey',
+                              style: TextStyle(
+                                color: Colors.white,
+                                fontSize: 13,
+                                fontWeight: FontWeight.w800,
+                              ),
+                            ),
                           ],
                         ),
                       ),
                     ),
-                  if (_journeyStarted && _completedStops < _routePolyline.length)
+                  if (_journeyStarted &&
+                      _completedStops < _routePolyline.length)
                     GestureDetector(
                       onTap: () {
                         setState(() => _completedStops++);
@@ -656,55 +781,115 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin {
                             SnackBar(
                               content: const Row(
                                 children: [
-                                  Icon(Icons.celebration_rounded, color: Colors.white, size: 20),
+                                  Icon(
+                                    Icons.celebration_rounded,
+                                    color: Colors.white,
+                                    size: 20,
+                                  ),
                                   SizedBox(width: 10),
-                                  Text('Journey Complete! ðŸŽ‰', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w700, fontSize: 15)),
+                                  Text(
+                                    'Journey Complete! ðŸŽ‰',
+                                    style: TextStyle(
+                                      color: Colors.white,
+                                      fontWeight: FontWeight.w700,
+                                      fontSize: 15,
+                                    ),
+                                  ),
                                 ],
                               ),
                               backgroundColor: const Color(0xFF4CAF50),
                               behavior: SnackBarBehavior.floating,
-                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(14),
+                              ),
                               duration: const Duration(seconds: 3),
                             ),
                           );
                         }
                       },
                       child: Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 16,
+                          vertical: 12,
+                        ),
                         decoration: BoxDecoration(
-                          gradient: const LinearGradient(colors: [Color(0xFFE53935), Color(0xFFC62828)]),
+                          gradient: const LinearGradient(
+                            colors: [Color(0xFFE53935), Color(0xFFC62828)],
+                          ),
                           borderRadius: BorderRadius.circular(50),
-                          boxShadow: [BoxShadow(color: const Color(0xFFE53935).withValues(alpha: 0.4), blurRadius: 12, offset: const Offset(0, 4))],
+                          boxShadow: [
+                            BoxShadow(
+                              color: const Color(
+                                0xFFE53935,
+                              ).withValues(alpha: 0.4),
+                              blurRadius: 12,
+                              offset: const Offset(0, 4),
+                            ),
+                          ],
                         ),
                         child: Row(
                           mainAxisSize: MainAxisSize.min,
                           children: [
-                            const Icon(Icons.check_circle_rounded, color: Colors.white, size: 18),
+                            const Icon(
+                              Icons.check_circle_rounded,
+                              color: Colors.white,
+                              size: 18,
+                            ),
                             const SizedBox(width: 6),
-                            Text('Stop ${_completedStops + 1} âœ“', style: const TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.w800)),
+                            Text(
+                              'Stop ${_completedStops + 1} âœ“',
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 13,
+                                fontWeight: FontWeight.w800,
+                              ),
+                            ),
                           ],
                         ),
                       ),
                     ),
-                  if (_journeyStarted && _completedStops >= _routePolyline.length)
+                  if (_journeyStarted &&
+                      _completedStops >= _routePolyline.length)
                     GestureDetector(
                       onTap: () => setState(() {
                         _journeyStarted = false;
                         _completedStops = 0;
                       }),
                       child: Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 16,
+                          vertical: 12,
+                        ),
                         decoration: BoxDecoration(
-                          gradient: const LinearGradient(colors: [_P.blue, _P.deepNavy]),
+                          gradient: const LinearGradient(
+                            colors: [_P.blue, _P.deepNavy],
+                          ),
                           borderRadius: BorderRadius.circular(50),
-                          boxShadow: [BoxShadow(color: _P.deepNavy.withValues(alpha: 0.4), blurRadius: 12, offset: const Offset(0, 4))],
+                          boxShadow: [
+                            BoxShadow(
+                              color: _P.deepNavy.withValues(alpha: 0.4),
+                              blurRadius: 12,
+                              offset: const Offset(0, 4),
+                            ),
+                          ],
                         ),
                         child: const Row(
                           mainAxisSize: MainAxisSize.min,
                           children: [
-                            Icon(Icons.refresh_rounded, color: Colors.white, size: 18),
+                            Icon(
+                              Icons.refresh_rounded,
+                              color: Colors.white,
+                              size: 18,
+                            ),
                             SizedBox(width: 6),
-                            Text('Reset', style: TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.w800)),
+                            Text(
+                              'Reset',
+                              style: TextStyle(
+                                color: Colors.white,
+                                fontSize: 13,
+                                fontWeight: FontWeight.w800,
+                              ),
+                            ),
                           ],
                         ),
                       ),
@@ -766,18 +951,28 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin {
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
                     Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 10,
+                        vertical: 4,
+                      ),
                       decoration: BoxDecoration(
                         color: Colors.white.withValues(alpha: 0.2),
                         borderRadius: BorderRadius.circular(50),
                       ),
                       child: Text(
                         place.category,
-                        style: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.w700),
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 11,
+                          fontWeight: FontWeight.w700,
+                        ),
                       ),
                     ),
                     Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 8,
+                        vertical: 4,
+                      ),
                       decoration: BoxDecoration(
                         color: Colors.white.withValues(alpha: 0.92),
                         borderRadius: BorderRadius.circular(50),
@@ -785,10 +980,26 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin {
                       child: Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          const Icon(Icons.star_rounded, color: Color(0xFFFFA726), size: 12),
-                          const SizedBox(width: 2),
-                          Text(place.rating.toString(),
-                              style: const TextStyle(color: _P.deepNavy, fontSize: 11, fontWeight: FontWeight.w800)),
+                          if (place.rating case final rating?) ...[
+                            const Icon(
+                              Icons.star_rounded,
+                              color: Color(0xFFFFA726),
+                              size: 12,
+                            ),
+                            const SizedBox(width: 2),
+                            Text(
+                              rating.toStringAsFixed(1),
+                              style: const TextStyle(
+                                color: _P.deepNavy,
+                                fontSize: 11,
+                                fontWeight: FontWeight.w800,
+                              ),
+                            ),
+                          ] else
+                            const Text(
+                              'Rating unavailable',
+                              style: TextStyle(color: _P.deepNavy, fontSize: 9),
+                            ),
                         ],
                       ),
                     ),
@@ -799,19 +1010,32 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin {
                   children: [
                     Text(
                       place.name,
-                      style: const TextStyle(color: Colors.white, fontSize: 15, fontWeight: FontWeight.w800, letterSpacing: -0.2),
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 15,
+                        fontWeight: FontWeight.w800,
+                        letterSpacing: -0.2,
+                      ),
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                     ),
                     const SizedBox(height: 4),
                     Row(
                       children: [
-                        const Icon(Icons.location_on_rounded, color: Colors.white70, size: 12),
+                        const Icon(
+                          Icons.location_on_rounded,
+                          color: Colors.white70,
+                          size: 12,
+                        ),
                         const SizedBox(width: 3),
                         Expanded(
                           child: Text(
                             place.location,
-                            style: const TextStyle(color: Colors.white70, fontSize: 12, fontWeight: FontWeight.w500),
+                            style: const TextStyle(
+                              color: Colors.white70,
+                              fontSize: 12,
+                              fontWeight: FontWeight.w500,
+                            ),
                             overflow: TextOverflow.ellipsis,
                           ),
                         ),
@@ -855,7 +1079,7 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin {
           children: [
             Row(
               children: [
-                 ClipRRect(
+                ClipRRect(
                   borderRadius: BorderRadius.circular(16),
                   child: Image.network(
                     place.imageUrl,
@@ -868,7 +1092,11 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin {
                       decoration: BoxDecoration(
                         gradient: LinearGradient(colors: place.gradient),
                       ),
-                      child: const Icon(Icons.location_on_rounded, color: Colors.white, size: 24),
+                      child: const Icon(
+                        Icons.location_on_rounded,
+                        color: Colors.white,
+                        size: 24,
+                      ),
                     ),
                   ),
                 ),
@@ -877,16 +1105,31 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(place.name,
-                          style: const TextStyle(color: _P.deepNavy, fontSize: 18, fontWeight: FontWeight.w800)),
+                      Text(
+                        place.name,
+                        style: const TextStyle(
+                          color: _P.deepNavy,
+                          fontSize: 18,
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
                       const SizedBox(height: 4),
-                      Text(place.location,
-                          style: const TextStyle(color: _P.inkSoft, fontSize: 13, fontWeight: FontWeight.w500)),
+                      Text(
+                        place.location,
+                        style: const TextStyle(
+                          color: _P.inkSoft,
+                          fontSize: 13,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
                     ],
                   ),
                 ),
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 6,
+                  ),
                   decoration: BoxDecoration(
                     color: _P.iceBlue,
                     borderRadius: BorderRadius.circular(50),
@@ -894,10 +1137,26 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin {
                   child: Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      const Icon(Icons.star_rounded, color: Color(0xFFFFA726), size: 16),
-                      const SizedBox(width: 4),
-                      Text(place.rating.toString(),
-                          style: const TextStyle(color: _P.deepNavy, fontSize: 14, fontWeight: FontWeight.w800)),
+                      if (place.rating case final rating?) ...[
+                        const Icon(
+                          Icons.star_rounded,
+                          color: Color(0xFFFFA726),
+                          size: 16,
+                        ),
+                        const SizedBox(width: 4),
+                        Text(
+                          rating.toStringAsFixed(1),
+                          style: const TextStyle(
+                            color: _P.deepNavy,
+                            fontSize: 14,
+                            fontWeight: FontWeight.w800,
+                          ),
+                        ),
+                      ] else
+                        const Text(
+                          'Rating unavailable',
+                          style: TextStyle(color: _P.deepNavy, fontSize: 11),
+                        ),
                     ],
                   ),
                 ),
@@ -908,8 +1167,10 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin {
               children: [
                 _detailChip(Icons.category_rounded, place.category),
                 const SizedBox(width: 10),
-                _detailChip(Icons.my_location_rounded,
-                    '${place.coords.latitude.toStringAsFixed(4)}, ${place.coords.longitude.toStringAsFixed(4)}'),
+                _detailChip(
+                  Icons.my_location_rounded,
+                  '${place.coords.latitude.toStringAsFixed(4)}, ${place.coords.longitude.toStringAsFixed(4)}',
+                ),
               ],
             ),
             const SizedBox(height: 20),
@@ -924,15 +1185,28 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin {
                     child: Container(
                       padding: const EdgeInsets.symmetric(vertical: 14),
                       decoration: BoxDecoration(
-                        gradient: const LinearGradient(colors: [_P.blue, _P.deepNavy]),
+                        gradient: const LinearGradient(
+                          colors: [_P.blue, _P.deepNavy],
+                        ),
                         borderRadius: BorderRadius.circular(50),
                       ),
                       child: const Row(
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
-                          Icon(Icons.navigation_rounded, color: Colors.white, size: 18),
+                          Icon(
+                            Icons.navigation_rounded,
+                            color: Colors.white,
+                            size: 18,
+                          ),
                           SizedBox(width: 8),
-                          Text('Navigate', style: TextStyle(color: Colors.white, fontSize: 15, fontWeight: FontWeight.w700)),
+                          Text(
+                            'Navigate',
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontSize: 15,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
                         ],
                       ),
                     ),
@@ -947,7 +1221,11 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin {
                       color: _P.iceBlue,
                       borderRadius: BorderRadius.circular(50),
                     ),
-                    child: const Icon(Icons.close_rounded, color: _P.deepNavy, size: 20),
+                    child: const Icon(
+                      Icons.close_rounded,
+                      color: _P.deepNavy,
+                      size: 20,
+                    ),
                   ),
                 ),
               ],
@@ -970,8 +1248,14 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin {
         children: [
           Icon(icon, color: _P.blue, size: 14),
           const SizedBox(width: 6),
-          Text(text,
-              style: const TextStyle(color: _P.deepNavy, fontSize: 12, fontWeight: FontWeight.w600)),
+          Text(
+            text,
+            style: const TextStyle(
+              color: _P.deepNavy,
+              fontSize: 12,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
         ],
       ),
     );
@@ -998,7 +1282,10 @@ class _GlassPanel extends StatelessWidget {
           decoration: BoxDecoration(
             color: Colors.white.withValues(alpha: 0.78),
             borderRadius: BorderRadius.circular(borderRadius),
-            border: Border.all(color: Colors.white.withValues(alpha: 0.6), width: 1),
+            border: Border.all(
+              color: Colors.white.withValues(alpha: 0.6),
+              width: 1,
+            ),
             boxShadow: [
               BoxShadow(
                 color: _P.deepNavy.withValues(alpha: 0.12),
@@ -1041,10 +1328,18 @@ class _GlassFabState extends State<_GlassFab> {
           width: 52,
           height: 52,
           decoration: BoxDecoration(
-            gradient: const LinearGradient(colors: [_P.deepNavy, _P.navy], begin: Alignment.topLeft, end: Alignment.bottomRight),
+            gradient: const LinearGradient(
+              colors: [_P.deepNavy, _P.navy],
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+            ),
             shape: BoxShape.circle,
             boxShadow: [
-              BoxShadow(color: _P.navy.withValues(alpha: 0.35), blurRadius: 16, offset: const Offset(0, 6)),
+              BoxShadow(
+                color: _P.navy.withValues(alpha: 0.35),
+                blurRadius: 16,
+                offset: const Offset(0, 6),
+              ),
             ],
           ),
           child: Icon(widget.icon, color: Colors.white, size: 22),
@@ -1091,7 +1386,9 @@ class CategoryStyle {
         );
       case 'falls':
         return const CategoryStyle(
-          color: Color(0xFF7E57C2), // Purple for Waterfall / Natural attractions
+          color: Color(
+            0xFF7E57C2,
+          ), // Purple for Waterfall / Natural attractions
           icon: Icons.water_drop_rounded,
           label: 'Falls',
         );
@@ -1151,14 +1448,14 @@ class _GoogleMapPoiMarker extends StatelessWidget {
     final categoryColor = place.isClosed
         ? Colors.grey.shade600
         : place.isUnderMaintenance
-            ? const Color(0xFFF57F17)
-            : style.color;
+        ? const Color(0xFFF57F17)
+        : style.color;
 
     final iconData = place.isClosed
         ? Icons.lock_rounded
         : place.isUnderMaintenance
-            ? Icons.construction_rounded
-            : style.icon;
+        ? Icons.construction_rounded
+        : style.icon;
 
     return AnimatedScale(
       duration: const Duration(milliseconds: 200),
@@ -1215,7 +1512,11 @@ class _DroppingMarker extends StatelessWidget {
   final Duration delay;
   final AnimationController controller;
 
-  const _DroppingMarker({required this.child, required this.delay, required this.controller});
+  const _DroppingMarker({
+    required this.child,
+    required this.delay,
+    required this.controller,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -1302,7 +1603,8 @@ class _CurrentLocationMarker extends StatefulWidget {
   State<_CurrentLocationMarker> createState() => _CurrentLocationMarkerState();
 }
 
-class _CurrentLocationMarkerState extends State<_CurrentLocationMarker> with SingleTickerProviderStateMixin {
+class _CurrentLocationMarkerState extends State<_CurrentLocationMarker>
+    with SingleTickerProviderStateMixin {
   late AnimationController _controller;
 
   @override
@@ -1339,10 +1641,7 @@ class _CurrentLocationMarkerState extends State<_CurrentLocationMarker> with Sin
             ],
           ),
           child: const Center(
-            child: CircleAvatar(
-              radius: 6,
-              backgroundColor: _P.blue,
-            ),
+            child: CircleAvatar(radius: 6, backgroundColor: _P.blue),
           ),
         );
       },

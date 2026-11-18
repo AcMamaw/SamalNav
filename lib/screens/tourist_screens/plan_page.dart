@@ -1,12 +1,18 @@
 import 'package:flutter/material.dart';
 import '../../theme/palette.dart';
 import '../../algorithms/moga_engine.dart';
+import '../../algorithms/manual_selection_moga_adapter.dart';
+import '../../algorithms/manual_selection_workflow.dart';
 import '../../state/app_state.dart';
-import 'package:latlong2/latlong.dart';
 import 'plan_results_page.dart';
 import '../../models/review.dart';
 import '../../models/destination_record.dart';
+import '../../models/itinerary_draft.dart';
 import '../../services/destination_service.dart';
+import '../../services/local_itinerary_draft_store.dart';
+import '../../services/cars_recommendation_provider.dart';
+import '../../services/tourist_planning_profile_service.dart';
+import 'system_generated_planning_page.dart';
 
 typedef _P = AppPalette;
 
@@ -17,7 +23,20 @@ typedef _P = AppPalette;
 class PlanPage extends StatefulWidget {
   final String? package;
   final String? preselectedDestinationName; // NEW
-  const PlanPage({super.key, this.package, this.preselectedDestinationName});
+  final Future<List<DestinationRecord>> Function()? destinationLoader;
+  final LocalItineraryDraftStore? localDraftStore;
+  final CarsRecommendationProvider? carsRecommendationProvider;
+  final TouristPlanningProfileService? touristPlanningProfileService;
+
+  const PlanPage({
+    super.key,
+    this.package,
+    this.preselectedDestinationName,
+    this.destinationLoader,
+    this.localDraftStore,
+    this.carsRecommendationProvider,
+    this.touristPlanningProfileService,
+  });
 
   @override
   State<PlanPage> createState() => _PlanPageState();
@@ -31,25 +50,44 @@ class _PlanPageState extends State<PlanPage> with TickerProviderStateMixin {
 
   // ── State ────────────────────────────────────────────────────────
   bool _isDayTour = true; // true = Day Escape, false = Itinerary Escape
-  DateTime _selectedDate = DateTime.now();
-  DateTime _endDate = DateTime.now().add(const Duration(days: 2));
+  DateTime _selectedDate = _calendarDate(DateTime.now());
+  DateTime _endDate = _calendarDate(
+    DateTime.now(),
+  ).add(const Duration(days: 2));
+  int _availableHoursPerDay = 9;
+  final TextEditingController _groupSizeController = TextEditingController();
+  final TextEditingController _childrenController = TextEditingController();
+  final TextEditingController _eldersController = TextEditingController();
+  final TextEditingController _originLatitudeController =
+      TextEditingController();
+  final TextEditingController _originLongitudeController =
+      TextEditingController();
+  PreferredTravelMode? _travelMode;
+  ItineraryDraft? _manualDraft;
+  ItineraryDraft? _pendingSystemGeneratedDraft;
 
   // Day Escape: a single shared selection set.
-  final Set<int> _selectedDestinations = {};
+  final Set<String> _selectedDestinations = {};
   String _daySearchQuery = '';
-  bool _dayPickerExpanded = true; // NEW — collapsed view when arriving from "Add to Plan"
+  bool _dayPickerExpanded =
+      true; // NEW — collapsed view when arriving from "Add to Plan"
 
   // Itinerary Escape: one selection set + one search query PER day.
-  final List<Set<int>> _dayDestinations = [];
+  final List<Set<String>> _dayDestinations = [];
   final List<String> _daySearchQueries = [];
 
   bool _isOptimizing = false;
 
+  static DateTime _calendarDate(DateTime value) =>
+      DateTime(value.year, value.month, value.day);
+
   // Time scheduling: maps destIndex -> (arrival, departure)
-  final Map<int, ({TimeOfDay? arrival, TimeOfDay? departure})> _timeSchedule = {};
+  final Map<int, ({TimeOfDay? arrival, TimeOfDay? departure})> _timeSchedule =
+      {};
 
   late AnimationController _pulseController; // idle "ready" breathing pulse
-  late AnimationController _listController; // staggered entrance for destination list
+  late AnimationController
+  _listController; // staggered entrance for destination list
 
   final ScrollController _scrollController = ScrollController();
 
@@ -71,19 +109,25 @@ class _PlanPageState extends State<PlanPage> with TickerProviderStateMixin {
 
   Future<void> _loadDestinations() async {
     try {
-      final records = await DestinationService.getAll();
+      final records =
+          await (widget.destinationLoader?.call() ??
+              DestinationService.getAll());
       if (!mounted) return;
 
       setState(() {
         _records = records;
-        _samalDestinations = records.map((r) => Destination(
-          name: r.name,
-          location: r.location,
-          lat: r.lat,
-          lng: r.lng,
-          visitHours: r.visitHours,
-          category: r.category,
-        )).toList();
+        _samalDestinations = records
+            .map(
+              (r) => Destination(
+                name: r.name,
+                location: r.location,
+                lat: r.lat,
+                lng: r.lng,
+                visitHours: r.visitHours,
+                category: r.category,
+              ),
+            )
+            .toList();
         _isLoadingDestinations = false;
 
         // Apply package or preselected destination once loaded
@@ -101,50 +145,73 @@ class _PlanPageState extends State<PlanPage> with TickerProviderStateMixin {
     if (widget.package != null) {
       if (widget.package == 'Island Hopping, 3 Days') {
         _isDayTour = false;
-        _selectedDate = DateTime.now();
-        _endDate = DateTime.now().add(const Duration(days: 2));
+        _selectedDate = _calendarDate(DateTime.now());
+        _endDate = _selectedDate.add(const Duration(days: 2));
         _syncDayBuckets();
-        final kapIdx = _samalDestinations.indexWhere((d) => d.name.contains('Kaputian'));
-        final talikudIdx = _samalDestinations.indexWhere((d) => d.name.contains('Talikud'));
-        final vanishIdx = _samalDestinations.indexWhere((d) => d.name.contains('Vanishing'));
-        final pearlIdx = _samalDestinations.indexWhere((d) => d.name.contains('Pearl Farm'));
+        final kapIdx = _samalDestinations.indexWhere(
+          (d) => d.name.contains('Kaputian'),
+        );
+        final talikudIdx = _samalDestinations.indexWhere(
+          (d) => d.name.contains('Talikud'),
+        );
+        final vanishIdx = _samalDestinations.indexWhere(
+          (d) => d.name.contains('Vanishing'),
+        );
+        final pearlIdx = _samalDestinations.indexWhere(
+          (d) => d.name.contains('Pearl Farm'),
+        );
 
         if (_dayDestinations.length >= 3) {
-          if (kapIdx != -1) _dayDestinations[0].add(kapIdx);
-          if (talikudIdx != -1) _dayDestinations[0].add(talikudIdx);
-          if (vanishIdx != -1) _dayDestinations[1].add(vanishIdx);
-          if (pearlIdx != -1) _dayDestinations[2].add(pearlIdx);
+          if (kapIdx != -1) _dayDestinations[0].add(_records[kapIdx].id);
+          if (talikudIdx != -1) {
+            _dayDestinations[0].add(_records[talikudIdx].id);
+          }
+          if (vanishIdx != -1) _dayDestinations[1].add(_records[vanishIdx].id);
+          if (pearlIdx != -1) _dayDestinations[2].add(_records[pearlIdx].id);
         }
       } else if (widget.package == 'Forest Trek & Falls') {
         _isDayTour = true;
-        _selectedDate = DateTime.now();
-        _endDate = DateTime.now();
-        final hagimitIdx = _samalDestinations.indexWhere((d) => d.name.contains('Hagimit'));
-        final maximaIdx = _samalDestinations.indexWhere((d) => d.name.contains('Maxima'));
-        final ligidIdx = _samalDestinations.indexWhere((d) => d.name.contains('Ligid'));
-        if (hagimitIdx != -1) _selectedDestinations.add(hagimitIdx);
-        if (maximaIdx != -1) _selectedDestinations.add(maximaIdx);
-        if (ligidIdx != -1) _selectedDestinations.add(ligidIdx);
+        _selectedDate = _calendarDate(DateTime.now());
+        _endDate = _selectedDate;
+        final hagimitIdx = _samalDestinations.indexWhere(
+          (d) => d.name.contains('Hagimit'),
+        );
+        final maximaIdx = _samalDestinations.indexWhere(
+          (d) => d.name.contains('Maxima'),
+        );
+        final ligidIdx = _samalDestinations.indexWhere(
+          (d) => d.name.contains('Ligid'),
+        );
+        if (hagimitIdx != -1) {
+          _selectedDestinations.add(_records[hagimitIdx].id);
+        }
+        if (maximaIdx != -1) _selectedDestinations.add(_records[maximaIdx].id);
+        if (ligidIdx != -1) _selectedDestinations.add(_records[ligidIdx].id);
       } else if (widget.package == 'Sunset Mountain Tour') {
         _isDayTour = true;
-        _selectedDate = DateTime.now();
-        _endDate = DateTime.now();
-        final batoIdx = _samalDestinations.indexWhere((d) => d.name.contains('Puting Bato'));
-        if (batoIdx != -1) _selectedDestinations.add(batoIdx);
+        _selectedDate = _calendarDate(DateTime.now());
+        _endDate = _selectedDate;
+        final batoIdx = _samalDestinations.indexWhere(
+          (d) => d.name.contains('Puting Bato'),
+        );
+        if (batoIdx != -1) _selectedDestinations.add(_records[batoIdx].id);
       }
     }
 
     // Arriving from a place's "Add to Plan" button
     if (widget.preselectedDestinationName != null) {
       _isDayTour = true;
-      _selectedDate = DateTime.now();
-      _endDate = DateTime.now();
+      _selectedDate = _calendarDate(DateTime.now());
+      _endDate = _selectedDate;
       final idx = _samalDestinations.indexWhere(
-        (d) => d.name.toLowerCase() == widget.preselectedDestinationName!.toLowerCase(),
+        (d) =>
+            d.name.toLowerCase() ==
+            widget.preselectedDestinationName!.toLowerCase(),
       );
       if (idx != -1) {
-        _selectedDestinations.add(idx);
-        _dayPickerExpanded = false; // start collapsed — just this one card + Add more
+        _selectedDestinations.add(_records[idx].id);
+        _dayPickerExpanded =
+            false; // start collapsed — just this one card + Add more
       }
     }
 
@@ -156,6 +223,11 @@ class _PlanPageState extends State<PlanPage> with TickerProviderStateMixin {
     _pulseController.dispose();
     _listController.dispose();
     _scrollController.dispose();
+    _groupSizeController.dispose();
+    _childrenController.dispose();
+    _eldersController.dispose();
+    _originLatitudeController.dispose();
+    _originLongitudeController.dispose();
     super.dispose();
   }
 
@@ -164,7 +236,7 @@ class _PlanPageState extends State<PlanPage> with TickerProviderStateMixin {
   /// Keeps _dayDestinations / _daySearchQueries sized to the current
   /// date range, preserving existing picks when the range grows/shrinks.
   void _syncDayBuckets() {
-    final days = _tripDays.clamp(1, 365);
+    final days = _tripDays.clamp(1, 30);
     while (_dayDestinations.length < days) {
       _dayDestinations.add({});
       _daySearchQueries.add('');
@@ -177,8 +249,9 @@ class _PlanPageState extends State<PlanPage> with TickerProviderStateMixin {
 
   /// True if [destIndex] was already picked on an earlier day than [dayIndex].
   bool _isUsedOnEarlierDay(int destIndex, int dayIndex) {
+    final id = _records[destIndex].id;
     for (var d = 0; d < dayIndex; d++) {
-      if (_dayDestinations[d].contains(destIndex)) return true;
+      if (_dayDestinations[d].contains(id)) return true;
     }
     return false;
   }
@@ -186,165 +259,451 @@ class _PlanPageState extends State<PlanPage> with TickerProviderStateMixin {
   // ── Icon for category ─────────────────────────────────────────
   IconData _catIcon(String cat) {
     switch (cat) {
-      case 'Beach': return Icons.beach_access_rounded;
-      case 'Falls': return Icons.water_drop_rounded;
-      case 'Mountain': return Icons.landscape_rounded;
-      case 'Resort': return Icons.villa_rounded;
-      case 'Island': return Icons.sailing_rounded;
-      case 'Historical': return Icons.account_balance_rounded;
-      default: return Icons.place_rounded;
+      case 'Beach':
+        return Icons.beach_access_rounded;
+      case 'Falls':
+        return Icons.water_drop_rounded;
+      case 'Mountain':
+        return Icons.landscape_rounded;
+      case 'Resort':
+        return Icons.villa_rounded;
+      case 'Island':
+        return Icons.sailing_rounded;
+      case 'Historical':
+        return Icons.account_balance_rounded;
+      default:
+        return Icons.place_rounded;
     }
   }
 
   List<Color> _catGradient(String cat) {
     switch (cat) {
-      case 'Beach': return [_P.skyBlue, _P.blue];
-      case 'Falls': return [_P.blue, _P.navy];
-      case 'Mountain': return [_P.navy, _P.deepNavy];
-      case 'Resort': return [_P.skyBlue, _P.blue];
-      case 'Island': return [_P.skyBlue, _P.navy];
-      case 'Historical': return [_P.navy, _P.deepNavy];
-      default: return [_P.blue, _P.navy];
+      case 'Beach':
+        return [_P.skyBlue, _P.blue];
+      case 'Falls':
+        return [_P.blue, _P.navy];
+      case 'Mountain':
+        return [_P.navy, _P.deepNavy];
+      case 'Resort':
+        return [_P.skyBlue, _P.blue];
+      case 'Island':
+        return [_P.skyBlue, _P.navy];
+      case 'Historical':
+        return [_P.navy, _P.deepNavy];
+      default:
+        return [_P.blue, _P.navy];
     }
   }
 
   // ── Run MOGA, then push the results page ───────────────────────
-  Future<void> _optimize() async {
-    final hasSelection = _isDayTour
-        ? _selectedDestinations.isNotEmpty
-        : _dayDestinations.any((s) => s.isNotEmpty);
-    if (!hasSelection) return;
+  Future<void> _optimize() => _reviewManualDraft();
 
-    setState(() => _isOptimizing = true);
-    await Future.delayed(const Duration(milliseconds: 300));
+  List<List<String>> get _currentDaySelections => _isDayTour
+      ? [_selectedDestinations.toList()]
+      : _dayDestinations.map((day) => day.toList()).toList();
 
-    if (_isDayTour) {
-      final selected = _selectedDestinations.toList()..sort();
-      final dests = selected.map((i) => _samalDestinations[i]).toList();
-
-      final engine = MogaEngine(
-        destinations: dests,
-        tourHours: 9.0,
-        avgSpeedKmh: 30.0,
-        populationSize: 50,
-        generations: 100,
-      );
-
-      final result = engine.optimizeDayTour();
-      final mappedOrder = result.stopOrder.map((i) => selected[i]).toList();
-      final dayResult = RouteResult(
-        stopOrder: mappedOrder,
-        totalDistanceKm: result.totalDistanceKm,
-        totalTimeHours: result.totalTimeHours,
-        legDistances: result.legDistances,
-        legTravelMins: result.legTravelMins,
-        feasibility: result.feasibility,
-        paretoFront: result.paretoFront.map((candidate) => ParetoCandidate(
-          stopOrder: candidate.stopOrder.map((index) => selected[index]).toList(),
-          fitness: candidate.fitness,
-        )).toList(),
-        selectionPolicy: result.selectionPolicy,
-      );
-
-      final polyline = mappedOrder
-          .map((idx) => LatLng(_samalDestinations[idx].lat, _samalDestinations[idx].lng))
-          .toList();
-      AppState.setActiveRouteSegments([polyline]);
-
-      if (!mounted) return;
-      setState(() => _isOptimizing = false);
-
-      Navigator.of(context).push(MaterialPageRoute(
-        builder: (_) => PlanResultsPage(
-          destinations: _samalDestinations,
-          dayResult: dayResult,
-          tripStartDate: _selectedDate,
-        ),
-      ));
-    } else {
-      // Keep the date-specific assignments and optimize each day's order
-      // independently. The engine receives indexes into this compact list.
-      final dayIndexLists = _dayDestinations.map((s) => s.toList()..sort()).toList();
-      final allSelected = dayIndexLists.expand((l) => l).toSet().toList()..sort();
-
-      if (allSelected.isEmpty) {
-        setState(() => _isOptimizing = false);
-        return;
+  TripConfiguration? _tripConfiguration(List<String> errors) {
+    int? parseCount(TextEditingController controller, String label) {
+      final text = controller.text.trim();
+      if (text.isEmpty) return null;
+      final value = int.tryParse(text);
+      if (value == null || value < 0) {
+        errors.add('$label must be a nonnegative whole number.');
       }
+      return value;
+    }
 
-      final dests = allSelected.map((i) => _samalDestinations[i]).toList();
-      final localIndexByGlobal = <int, int>{
-        for (var i = 0; i < allSelected.length; i++) allSelected[i]: i,
-      };
-      final assignedLocalDays = dayIndexLists
-          .map((day) => day.map((globalIndex) => localIndexByGlobal[globalIndex]!).toList())
-          .toList();
-      final engine = MogaEngine(
-        destinations: dests,
-        tourHours: 9.0,
-        avgSpeedKmh: 30.0,
-        populationSize: 50,
-        generations: 100,
+    final groupSize = parseCount(_groupSizeController, 'Group size');
+    final children = parseCount(_childrenController, 'Children count');
+    final elders = parseCount(_eldersController, 'Elders count');
+    final groupFields = [
+      _groupSizeController,
+      _childrenController,
+      _eldersController,
+    ];
+    if (groupFields.any((controller) => controller.text.trim().isNotEmpty) &&
+        groupFields.any((controller) => controller.text.trim().isEmpty)) {
+      errors.add('Enter total group, children, and elders counts together.');
+    }
+
+    final latitudeText = _originLatitudeController.text.trim();
+    final longitudeText = _originLongitudeController.text.trim();
+    TripOrigin? origin;
+    if (latitudeText.isNotEmpty || longitudeText.isNotEmpty) {
+      final latitude = double.tryParse(latitudeText);
+      final longitude = double.tryParse(longitudeText);
+      if (latitude == null || longitude == null) {
+        errors.add('Enter both starting-point coordinates as numbers.');
+      } else {
+        origin = TripOrigin(latitude: latitude, longitude: longitude);
+      }
+    }
+
+    final existingTrip = _manualDraft?.trip;
+    final trip = TripConfiguration(
+      startDate: _selectedDate,
+      durationDays: _isDayTour ? 1 : _tripDays,
+      availableHoursPerDay: _availableHoursPerDay,
+      budgetMinimum: existingTrip?.budgetMinimum,
+      budgetMaximum: existingTrip?.budgetMaximum,
+      budgetBasis: existingTrip?.budgetBasis,
+      currency: existingTrip?.currency,
+      totalGroupSize: groupSize,
+      childrenCount: children,
+      eldersCount: elders,
+      origin: origin,
+      travelMode: _travelMode,
+      requiredTransfers: existingTrip?.requiredTransfers ?? const [],
+    );
+    errors.addAll(trip.validate());
+    return errors.isEmpty ? trip : null;
+  }
+
+  Future<void> _reviewManualDraft() async {
+    if (_currentDaySelections.every((day) => day.isEmpty)) return;
+    final errors = <String>[];
+    final trip = _tripConfiguration(errors);
+    if (trip == null) {
+      _showPlanningMessage(errors.join('\n'));
+      return;
+    }
+    try {
+      final draft = const ManualSelectionDraftBuilder().build(
+        destinations: _records,
+        daySelections: _currentDaySelections,
+        trip: trip,
+        existingDraft: _manualDraft,
       );
-
-      final result = engine.optimizeAssignedItinerary(assignedLocalDays);
-      final mappedDays = result.days.map((day) {
-        return DayPlan(
-          dayNumber: day.dayNumber,
-          stopOrder: day.stopOrder.map((i) => allSelected[i]).toList(),
-          distanceKm: day.distanceKm,
-          timeHours: day.timeHours,
-          legDistances: day.legDistances,
-          legTravelMins: day.legTravelMins,
-          feasibility: day.feasibility,
-          paretoFront: day.paretoFront.map((candidate) => ParetoCandidate(
-            stopOrder: candidate.stopOrder.map((index) => allSelected[index]).toList(),
-            fitness: candidate.fitness,
-          )).toList(),
-        );
-      }).toList();
-
-      final itineraryResult = ItineraryResult(
-        days: mappedDays,
-        totalDistanceKm: result.totalDistanceKm,
-        requestedDayCount: result.requestedDayCount,
-        dayCountSatisfied: result.dayCountSatisfied,
-        violations: result.violations.map((violation) => DayViolation(
-          dayNumber: violation.dayNumber,
-          destinationIndex: allSelected[violation.destinationIndex],
-          requiredHours: violation.requiredHours,
-          availableHours: violation.availableHours,
-          overByHours: violation.overByHours,
-        )).toList(),
-      );
-
-      final routeSegments = mappedDays
-          .map((day) => day.stopOrder
-              .map((idx) => LatLng(_samalDestinations[idx].lat, _samalDestinations[idx].lng))
-              .toList())
-          .toList();
-      AppState.setActiveRouteSegments(routeSegments);
-
+      setState(() => _manualDraft = draft);
       if (!mounted) return;
-      setState(() => _isOptimizing = false);
-
-      Navigator.of(context).push(MaterialPageRoute(
-        builder: (_) => PlanResultsPage(
-          destinations: _samalDestinations,
-          itineraryResult: itineraryResult,
-          tripStartDate: _selectedDate,
-        ),
-      ));
+      await showDialog<void>(
+        context: context,
+        builder: (dialogContext) =>
+            _buildDraftReviewDialog(dialogContext, draft),
+      );
+    } on Object catch (error) {
+      _showPlanningMessage('Could not prepare this draft: $error');
     }
   }
 
-  // ── Date Picker ───────────────────────────────────────────────
+  Future<void> _openSystemGeneratedPlanning() async {
+    final errors = <String>[];
+    final trip = _tripConfiguration(errors);
+    if (trip == null) {
+      _showPlanningMessage(errors.join('\n'));
+      return;
+    }
+    final accepted = await Navigator.of(context).push<ItineraryDraft>(
+      MaterialPageRoute(
+        builder: (_) => SystemGeneratedPlanningPage(
+          trip: trip,
+          provider:
+              widget.carsRecommendationProvider ??
+              const UnavailableCarsRecommendationProvider(),
+          profileService: widget.touristPlanningProfileService,
+        ),
+      ),
+    );
+    if (!mounted || accepted == null) return;
+    setState(() => _pendingSystemGeneratedDraft = accepted);
+  }
+
+  Future<void> _savePendingSystemGeneratedDraft() async {
+    final draft = _pendingSystemGeneratedDraft;
+    if (draft == null) return;
+    try {
+      await (await _localDraftStore()).saveDraft(draft);
+      if (!mounted) return;
+      setState(() => _pendingSystemGeneratedDraft = null);
+      _showPlanningMessage(
+        'System-generated draft saved on this device. It is not synced to your account.',
+      );
+    } on Object catch (error) {
+      _showPlanningMessage('Could not save this local draft: $error');
+    }
+  }
+
+  Widget _buildDraftReviewDialog(
+    BuildContext dialogContext,
+    ItineraryDraft draft,
+  ) {
+    final stopsByDay = <int, List<DraftStop>>{};
+    for (final stop in draft.stops) {
+      stopsByDay.putIfAbsent(stop.assignedDay ?? 1, () => []).add(stop);
+    }
+    return AlertDialog(
+      title: const Text('Review your manual draft'),
+      content: SizedBox(
+        width: 480,
+        child: SingleChildScrollView(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                '${draft.trip.durationDays} day(s) · ${draft.trip.availableHoursPerDay} available hours per day',
+              ),
+              Text(
+                'Dates: ${_formatDate(_selectedDate)} – ${_formatDate(_selectedDate.add(Duration(days: draft.trip.durationDays - 1)))}',
+              ),
+              if (draft.trip.adultsCount != null)
+                Text(
+                  'Group: ${draft.trip.totalGroupSize} people · ${draft.trip.adultsCount} adults, ${draft.trip.childrenCount} children, ${draft.trip.eldersCount} elders',
+                ),
+              if (draft.trip.origin != null)
+                Text(
+                  'Selected trip starting point: ${draft.trip.origin!.latitude}, ${draft.trip.origin!.longitude}',
+                ),
+              if (draft.trip.travelMode != null)
+                Text('Travel mode: ${draft.trip.travelMode!.value}'),
+              const SizedBox(height: 14),
+              for (var day = 1; day <= draft.trip.durationDays; day++) ...[
+                if (draft.trip.durationDays > 1)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 8, bottom: 4),
+                    child: Text(
+                      'Day $day',
+                      style: const TextStyle(fontWeight: FontWeight.bold),
+                    ),
+                  ),
+                for (final stop in stopsByDay[day] ?? const <DraftStop>[])
+                  ListTile(
+                    dense: true,
+                    contentPadding: EdgeInsets.zero,
+                    leading: const Icon(Icons.place_outlined),
+                    title: Text(stop.destination.name),
+                    subtitle: Text(stop.destination.category),
+                  ),
+              ],
+              const SizedBox(height: 10),
+              const Text(
+                'MO-GA requires active, verified database destinations with usable coordinates and visit duration. Ineligible records will be reported and will not be dropped silently.',
+              ),
+              const SizedBox(height: 8),
+              const Text(
+                'MO-GA uses the existing coordinate-based distance estimate and average speed. Trip origin and travel mode are retained in this draft but are not used for route calculation.',
+              ),
+              const SizedBox(height: 8),
+              const Text(
+                'This draft is held in this screen session. You can save an editable copy on this device; it will not sync to your account.',
+              ),
+            ],
+          ),
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(dialogContext).pop(),
+          child: const Text('Keep draft'),
+        ),
+        TextButton.icon(
+          key: const Key('save_local_draft'),
+          onPressed: () => _saveLocalDraft(dialogContext, draft),
+          icon: const Icon(Icons.save_outlined),
+          label: const Text('Save on this device'),
+        ),
+        FilledButton.icon(
+          onPressed: () {
+            Navigator.of(dialogContext).pop();
+            _optimizeManualDraft(draft);
+          },
+          icon: const Icon(Icons.auto_awesome),
+          label: const Text('Optimize with MO-GA'),
+        ),
+      ],
+    );
+  }
+
+  Future<LocalItineraryDraftStore> _localDraftStore() async =>
+      widget.localDraftStore ?? await LocalItineraryDraftStore.open();
+
+  Future<void> _saveLocalDraft(
+    BuildContext dialogContext,
+    ItineraryDraft draft,
+  ) async {
+    try {
+      await (await _localDraftStore()).saveDraft(draft);
+      if (!mounted) return;
+      Navigator.of(context).pop();
+      _showPlanningMessage(
+        'Draft saved on this device. It is not synced to your account.',
+      );
+    } on Object catch (error) {
+      _showPlanningMessage('Could not save this local draft: $error');
+    }
+  }
+
+  Future<void> _openLocalDrafts() async {
+    try {
+      final drafts = (await _localDraftStore()).readDrafts();
+      if (!mounted) return;
+      final selected = await showDialog<ItineraryDraft>(
+        context: context,
+        builder: (dialogContext) => AlertDialog(
+          title: const Text('Drafts saved on this device'),
+          content: SizedBox(
+            width: 480,
+            height: 320,
+            child: drafts.isEmpty
+                ? const Center(child: Text('No on-device drafts yet.'))
+                : ListView.separated(
+                    itemCount: drafts.length,
+                    separatorBuilder: (_, _) => const Divider(height: 1),
+                    itemBuilder: (context, index) {
+                      final draft = drafts[index];
+                      final names = draft.stops
+                          .where((stop) => stop.isIncluded)
+                          .map((stop) => stop.destination.name)
+                          .take(2)
+                          .join(', ');
+                      return ListTile(
+                        key: Key('local_draft_${draft.id}'),
+                        title: Text(names.isEmpty ? 'Itinerary draft' : names),
+                        subtitle: Text(
+                          'Draft · saved only on this device · '
+                          '${_formatDate(draft.updatedAt.toLocal())}',
+                        ),
+                        trailing: const Icon(Icons.chevron_right),
+                        onTap: () => Navigator.of(dialogContext).pop(draft),
+                      );
+                    },
+                  ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(),
+              child: const Text('Close'),
+            ),
+          ],
+        ),
+      );
+      if (selected != null) _restoreLocalDraft(selected);
+    } on Object catch (error) {
+      _showPlanningMessage('Could not open on-device drafts: $error');
+    }
+  }
+
+  void _restoreLocalDraft(ItineraryDraft draft) {
+    if (draft.stops.any((stop) => !stop.isIncluded)) {
+      _showPlanningMessage(
+        'This draft contains excluded destinations that this planner cannot '
+        'safely restore yet. The saved copy was left unchanged.',
+      );
+      return;
+    }
+    final includedStops = draft.stops.where((stop) => stop.isIncluded);
+    final ids = includedStops.map((stop) => stop.destinationId).toSet();
+    final availableIds = _records.map((record) => record.id).toSet();
+    if (!availableIds.containsAll(ids)) {
+      _showPlanningMessage(
+        'This draft includes destinations missing from the current directory. '
+        'The saved copy was left unchanged.',
+      );
+      return;
+    }
+
+    final days = draft.trip.durationDays;
+    if (days < 1 || days > 30) {
+      _showPlanningMessage(
+        'This draft has an unsupported trip duration. '
+        'The saved copy was left unchanged.',
+      );
+      return;
+    }
+    final daySelections = List.generate(days, (_) => <String>{});
+    if (days > 1) {
+      for (final stop in includedStops) {
+        final day = stop.assignedDay;
+        if (day == null || day < 1 || day > days) {
+          _showPlanningMessage(
+            'This draft has an incomplete day assignment. '
+            'The saved copy was left unchanged.',
+          );
+          return;
+        }
+        daySelections[day - 1].add(stop.destinationId);
+      }
+    }
+
+    setState(() {
+      _manualDraft = draft;
+      _isDayTour = days == 1;
+      _selectedDate = _calendarDate(draft.trip.startDate ?? DateTime.now());
+      _endDate = _selectedDate.add(Duration(days: days - 1));
+      _availableHoursPerDay = draft.trip.availableHoursPerDay;
+      _groupSizeController.text = draft.trip.totalGroupSize?.toString() ?? '';
+      _childrenController.text = draft.trip.childrenCount?.toString() ?? '';
+      _eldersController.text = draft.trip.eldersCount?.toString() ?? '';
+      _originLatitudeController.text =
+          draft.trip.origin?.latitude.toString() ?? '';
+      _originLongitudeController.text =
+          draft.trip.origin?.longitude.toString() ?? '';
+      _travelMode = draft.trip.travelMode;
+      _selectedDestinations
+        ..clear()
+        ..addAll(days == 1 ? ids : const <String>{});
+      _syncDayBuckets();
+      for (var day = 0; day < days; day++) {
+        _dayDestinations[day]
+          ..clear()
+          ..addAll(daySelections[day]);
+        _daySearchQueries[day] = '';
+      }
+    });
+    _showPlanningMessage('Local draft reopened. Continue editing your plan.');
+  }
+
+  Future<void> _optimizeManualDraft(ItineraryDraft draft) async {
+    setState(() => _isOptimizing = true);
+    try {
+      final ready = draft.transitionTo(DraftStage.readyForOptimization);
+      final optimizing = ready.transitionTo(DraftStage.optimizing);
+      final result = const ManualSelectionMogaAdapter().optimize(ready);
+      final completed = optimizing
+          .transitionTo(DraftStage.optimizationResults, result: result)
+          .transitionTo(DraftStage.itineraryReview);
+      final mapped = const ManualSelectionResultMapper().map(result, _records);
+      setState(() => _manualDraft = completed);
+      AppState.setActiveRouteSegments(mapped.routeSegments);
+      if (!mounted) return;
+      setState(() => _isOptimizing = false);
+      Navigator.of(context).push(
+        MaterialPageRoute(
+          builder: (_) => PlanResultsPage(
+            destinations: _samalDestinations,
+            dayResult: mapped.dayResult,
+            itineraryResult: mapped.itineraryResult,
+            tripStartDate: _selectedDate,
+            draft: completed,
+          ),
+        ),
+      );
+    } on DraftValidationException catch (error) {
+      if (mounted) setState(() => _isOptimizing = false);
+      _showPlanningMessage(error.errors.join('\n'));
+    } on Object catch (error) {
+      if (mounted) setState(() => _isOptimizing = false);
+      _showPlanningMessage(
+        'MO-GA could not optimize this draft: $error. Your manual selections are still available to review.',
+      );
+    }
+  }
+
+  void _showPlanningMessage(String message) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(message), duration: const Duration(seconds: 5)),
+    );
+  }
+
   Future<void> _pickDate({bool isEnd = false}) async {
     final picked = await showDatePicker(
       context: context,
       initialDate: isEnd ? _endDate : _selectedDate,
-      firstDate: DateTime.now(),
-      lastDate: DateTime.now().add(const Duration(days: 365)),
+      firstDate: _calendarDate(DateTime.now()),
+      lastDate: isEnd
+          ? _selectedDate.add(const Duration(days: 29))
+          : _calendarDate(DateTime.now()).add(const Duration(days: 365)),
       builder: (context, child) {
         return Theme(
           data: Theme.of(context).copyWith(
@@ -366,7 +725,9 @@ class _PlanPageState extends State<PlanPage> with TickerProviderStateMixin {
         } else {
           _selectedDate = picked;
           if (_endDate.isBefore(_selectedDate)) {
-            _endDate = _selectedDate.add(const Duration(days: 1));
+            _endDate = _selectedDate;
+          } else if (_endDate.difference(_selectedDate).inDays >= 30) {
+            _endDate = _selectedDate.add(const Duration(days: 29));
           }
         }
         _syncDayBuckets();
@@ -375,7 +736,20 @@ class _PlanPageState extends State<PlanPage> with TickerProviderStateMixin {
   }
 
   String _formatDate(DateTime d) {
-    const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    const months = [
+      'Jan',
+      'Feb',
+      'Mar',
+      'Apr',
+      'May',
+      'Jun',
+      'Jul',
+      'Aug',
+      'Sep',
+      'Oct',
+      'Nov',
+      'Dec',
+    ];
     return '${months[d.month - 1]} ${d.day}, ${d.year}';
   }
 
@@ -390,13 +764,18 @@ class _PlanPageState extends State<PlanPage> with TickerProviderStateMixin {
   }
 
   // ── Detail sheet ────────────────────────────────────────────────
-  void _openDetailSheet(int destIndex, {required bool isSelected, required VoidCallback onToggle}) {
+  void _openDetailSheet(
+    int destIndex, {
+    required bool isSelected,
+    required VoidCallback onToggle,
+  }) {
     final dest = _samalDestinations[destIndex];
     final record = destIndex < _records.length ? _records[destIndex] : null;
-    final rating = record?.rating ?? 4.5;
-    final blurb = (record?.description != null && record!.description!.isNotEmpty)
+    final rating = record?.availableRating;
+    final blurb =
+        (record?.description != null && record!.description!.isNotEmpty)
         ? record.description!
-        : 'A beautiful and verified destination in Samal Island.';
+        : 'A destination listed in the current directory.';
 
     showModalBottomSheet(
       context: context,
@@ -440,6 +819,52 @@ class _PlanPageState extends State<PlanPage> with TickerProviderStateMixin {
                   const SizedBox(height: 24),
                   _buildModeSelector(),
                   const SizedBox(height: 20),
+                  SizedBox(
+                    width: double.infinity,
+                    child: OutlinedButton.icon(
+                      key: const Key('open_system_generated_planning'),
+                      onPressed: _openSystemGeneratedPlanning,
+                      icon: const Icon(Icons.auto_awesome_outlined),
+                      label: const Text('System-generated planning with CARS'),
+                    ),
+                  ),
+                  if (_pendingSystemGeneratedDraft != null) ...[
+                    const SizedBox(height: 12),
+                    Card(
+                      key: const Key('pending_system_generated_draft'),
+                      child: ListTile(
+                        leading: const Icon(Icons.route_outlined),
+                        title: const Text('Reviewed system-generated itinerary'),
+                        subtitle: Text(
+                          '${_pendingSystemGeneratedDraft!.stops.where((stop) => stop.isIncluded).length} selected destinations. Not saved or synced yet.',
+                        ),
+                        trailing: TextButton.icon(
+                          key: const Key('save_system_generated_draft'),
+                          onPressed: _savePendingSystemGeneratedDraft,
+                          icon: const Icon(Icons.save_outlined),
+                          label: const Text('Save on device'),
+                        ),
+                      ),
+                    ),
+                  ],
+                  const SizedBox(height: 12),
+                  Align(
+                    alignment: Alignment.centerRight,
+                    child: OutlinedButton.icon(
+                      key: const Key('open_local_drafts'),
+                      onPressed: _openLocalDrafts,
+                      icon: const Icon(Icons.folder_open_outlined),
+                      label: const Text('On-device drafts'),
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  if (_records.any(
+                    (record) =>
+                        record.source == DestinationRecordSource.fallback,
+                  )) ...[
+                    _buildFallbackDataNotice(),
+                    const SizedBox(height: 16),
+                  ],
                   AnimatedSwitcher(
                     duration: const Duration(milliseconds: 350),
                     transitionBuilder: (child, anim) => FadeTransition(
@@ -448,12 +873,16 @@ class _PlanPageState extends State<PlanPage> with TickerProviderStateMixin {
                     ),
                     child: _buildDateSection(),
                   ),
+                  const SizedBox(height: 14),
+                  _buildTripDetailsSection(),
                   const SizedBox(height: 28),
 
                   // ── Mode-specific content ──────────────────────
                   AnimatedSwitcher(
                     duration: const Duration(milliseconds: 300),
-                    child: _isDayTour ? _buildDayEscapeSection() : _buildItineraryEscapeSection(),
+                    child: _isDayTour
+                        ? _buildDayEscapeSection()
+                        : _buildItineraryEscapeSection(),
                   ),
 
                   const SizedBox(height: 26),
@@ -464,6 +893,43 @@ class _PlanPageState extends State<PlanPage> with TickerProviderStateMixin {
             ),
           ),
         ),
+      ),
+    );
+  }
+
+  Widget _buildFallbackDataNotice() {
+    final fallbackCount = _records
+        .where((record) => record.source == DestinationRecordSource.fallback)
+        .length;
+    return Container(
+      key: const Key('fallback_destination_notice'),
+      width: double.infinity,
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: const Color(0xFFFFF3E0),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: const Color(0xFFFFCC80)),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Icon(Icons.info_outline, color: Color(0xFF7A4100)),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              'Showing $fallbackCount bundled offline sample '
+              '${fallbackCount == 1 ? 'destination' : 'destinations'}. '
+              'They have not been checked against the current database, so '
+              'their details may be out of date. These sample records do not '
+              'have database destination IDs and cannot be optimized with MO-GA.',
+              style: const TextStyle(
+                color: Color(0xFF7A4100),
+                fontWeight: FontWeight.w600,
+                height: 1.35,
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -495,15 +961,30 @@ class _PlanPageState extends State<PlanPage> with TickerProviderStateMixin {
                     ),
                   ),
                   const SizedBox(width: 10),
-                  const Text('Route Planner',
-                      style: TextStyle(color: _P.deepNavy, fontSize: 27, fontWeight: FontWeight.w800, letterSpacing: -0.6, height: 1.0)),
+                  const Text(
+                    'Route Planner',
+                    style: TextStyle(
+                      color: _P.deepNavy,
+                      fontSize: 27,
+                      fontWeight: FontWeight.w800,
+                      letterSpacing: -0.6,
+                      height: 1.0,
+                    ),
+                  ),
                 ],
               ),
               const SizedBox(height: 8),
               const Padding(
                 padding: EdgeInsets.only(left: 16),
-                child: Text('Plotted stop-by-stop by the MOGA engine for the fewest backtracks.',
-                    style: TextStyle(color: _P.inkSoft, fontSize: 13.5, fontWeight: FontWeight.w500, height: 1.3)),
+                child: Text(
+                  'Plotted stop-by-stop by the MOGA engine for the fewest backtracks.',
+                  style: TextStyle(
+                    color: _P.inkSoft,
+                    fontSize: 13.5,
+                    fontWeight: FontWeight.w500,
+                    height: 1.3,
+                  ),
+                ),
               ),
             ],
           ),
@@ -519,21 +1000,25 @@ class _PlanPageState extends State<PlanPage> with TickerProviderStateMixin {
   Widget _buildModeSelector() {
     return Row(
       children: [
-        Expanded(child: _modeCard(
-          icon: Icons.wb_sunny_rounded,
-          title: 'Day Escape',
-          subtitle: 'One day, One destination',
-          isSelected: _isDayTour,
-          onTap: () => setState(() => _isDayTour = true),
-        )),
+        Expanded(
+          child: _modeCard(
+            icon: Icons.wb_sunny_rounded,
+            title: 'Day Escape',
+            subtitle: 'Choose destinations for one day',
+            isSelected: _isDayTour,
+            onTap: () => setState(() => _isDayTour = true),
+          ),
+        ),
         const SizedBox(width: 12),
-        Expanded(child: _modeCard(
-          icon: Icons.calendar_month_rounded,
-          title: 'Itinerary Escape',
-          subtitle: 'Multiple Destinations',
-          isSelected: !_isDayTour,
-          onTap: () => setState(() => _isDayTour = false),
-        )),
+        Expanded(
+          child: _modeCard(
+            icon: Icons.calendar_month_rounded,
+            title: 'Itinerary Escape',
+            subtitle: 'Multiple Destinations',
+            isSelected: !_isDayTour,
+            onTap: () => setState(() => _isDayTour = false),
+          ),
+        ),
       ],
     );
   }
@@ -553,7 +1038,11 @@ class _PlanPageState extends State<PlanPage> with TickerProviderStateMixin {
         padding: const EdgeInsets.all(18),
         decoration: BoxDecoration(
           gradient: isSelected
-              ? const LinearGradient(colors: [_P.deepNavy, _P.navy], begin: Alignment.topLeft, end: Alignment.bottomRight)
+              ? const LinearGradient(
+                  colors: [_P.deepNavy, _P.navy],
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                )
               : null,
           color: isSelected ? null : Colors.white,
           borderRadius: BorderRadius.circular(22),
@@ -563,7 +1052,9 @@ class _PlanPageState extends State<PlanPage> with TickerProviderStateMixin {
           ),
           boxShadow: [
             BoxShadow(
-              color: isSelected ? _P.navy.withValues(alpha: 0.28) : _P.deepNavy.withValues(alpha: 0.04),
+              color: isSelected
+                  ? _P.navy.withValues(alpha: 0.28)
+                  : _P.deepNavy.withValues(alpha: 0.04),
               blurRadius: isSelected ? 18 : 8,
               offset: const Offset(0, 6),
             ),
@@ -576,31 +1067,55 @@ class _PlanPageState extends State<PlanPage> with TickerProviderStateMixin {
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
                 Container(
-                  width: 42, height: 42,
+                  width: 42,
+                  height: 42,
                   decoration: BoxDecoration(
-                    color: isSelected ? Colors.white.withValues(alpha: 0.15) : _P.iceBlue,
+                    color: isSelected
+                        ? Colors.white.withValues(alpha: 0.15)
+                        : _P.iceBlue,
                     borderRadius: BorderRadius.circular(13),
                   ),
-                  child: Icon(icon, color: isSelected ? _P.skyBlue : _P.blue, size: 21),
+                  child: Icon(
+                    icon,
+                    color: isSelected ? _P.skyBlue : _P.blue,
+                    size: 21,
+                  ),
                 ),
                 if (isSelected)
                   Container(
-                    width: 20, height: 20,
-                    decoration: const BoxDecoration(color: Colors.white, shape: BoxShape.circle),
-                    child: const Icon(Icons.check_rounded, color: _P.deepNavy, size: 14),
+                    width: 20,
+                    height: 20,
+                    decoration: const BoxDecoration(
+                      color: Colors.white,
+                      shape: BoxShape.circle,
+                    ),
+                    child: const Icon(
+                      Icons.check_rounded,
+                      color: _P.deepNavy,
+                      size: 14,
+                    ),
                   ),
               ],
             ),
             const SizedBox(height: 14),
-            Text(title, style: TextStyle(
-              color: isSelected ? Colors.white : _P.deepNavy,
-              fontSize: 16, fontWeight: FontWeight.w800, letterSpacing: -0.2,
-            )),
+            Text(
+              title,
+              style: TextStyle(
+                color: isSelected ? Colors.white : _P.deepNavy,
+                fontSize: 16,
+                fontWeight: FontWeight.w800,
+                letterSpacing: -0.2,
+              ),
+            ),
             const SizedBox(height: 3),
-            Text(subtitle, style: TextStyle(
-              color: isSelected ? Colors.white70 : _P.inkSoft,
-              fontSize: 12, fontWeight: FontWeight.w500,
-            )),
+            Text(
+              subtitle,
+              style: TextStyle(
+                color: isSelected ? Colors.white70 : _P.inkSoft,
+                fontSize: 12,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
           ],
         ),
       ),
@@ -623,14 +1138,187 @@ class _PlanPageState extends State<PlanPage> with TickerProviderStateMixin {
     return Row(
       key: const ValueKey('range'),
       children: [
-        Expanded(child: _dateChip(label: 'Start date', date: _selectedDate, onTap: () => _pickDate())),
+        Expanded(
+          child: _dateChip(
+            label: 'Start date',
+            date: _selectedDate,
+            onTap: () => _pickDate(),
+          ),
+        ),
         const SizedBox(width: 12),
-        Expanded(child: _dateChip(label: 'End date', date: _endDate, onTap: () => _pickDate(isEnd: true))),
+        Expanded(
+          child: _dateChip(
+            label: 'End date',
+            date: _endDate,
+            onTap: () => _pickDate(isEnd: true),
+          ),
+        ),
       ],
     );
   }
 
-  Widget _dateChip({Key? key, required String label, required DateTime date, required VoidCallback onTap}) {
+  Widget _buildTripDetailsSection() {
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: _P.iceBlue, width: 1.2),
+      ),
+      child: Theme(
+        data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
+        child: ExpansionTile(
+          title: const Text(
+            'Trip details',
+            style: TextStyle(fontWeight: FontWeight.w700),
+          ),
+          subtitle: Text(
+            '$_availableHoursPerDay hours per day${_travelMode == null ? '' : ' · ${_travelMode!.value}'}',
+          ),
+          childrenPadding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+          children: [
+            DropdownButtonFormField<int>(
+              initialValue: _availableHoursPerDay,
+              decoration: const InputDecoration(
+                labelText: 'Available hours per day',
+              ),
+              items: [
+                for (var hours = 1; hours <= 24; hours++)
+                  DropdownMenuItem(value: hours, child: Text('$hours hours')),
+              ],
+              onChanged: (value) {
+                if (value != null) {
+                  setState(() => _availableHoursPerDay = value);
+                }
+              },
+            ),
+            const SizedBox(height: 12),
+            const Align(
+              alignment: Alignment.centerLeft,
+              child: Text(
+                'Group composition (optional)',
+                style: TextStyle(fontWeight: FontWeight.w600),
+              ),
+            ),
+            const SizedBox(height: 8),
+            Row(
+              children: [
+                Expanded(
+                  child: _countField('Total people', _groupSizeController),
+                ),
+                const SizedBox(width: 8),
+                Expanded(child: _countField('Children', _childrenController)),
+                const SizedBox(width: 8),
+                Expanded(child: _countField('Elders', _eldersController)),
+              ],
+            ),
+            if (_groupSizeController.text.isNotEmpty &&
+                _childrenController.text.isNotEmpty &&
+                _eldersController.text.isNotEmpty)
+              Builder(
+                builder: (_) {
+                  final total = int.tryParse(_groupSizeController.text);
+                  final children = int.tryParse(_childrenController.text);
+                  final elders = int.tryParse(_eldersController.text);
+                  final adults =
+                      total == null || children == null || elders == null
+                      ? null
+                      : total - children - elders;
+                  return Align(
+                    alignment: Alignment.centerLeft,
+                    child: Text(
+                      adults == null || adults < 0
+                          ? 'Check group counts'
+                          : 'Adults: $adults',
+                    ),
+                  );
+                },
+              ),
+            const SizedBox(height: 12),
+            DropdownButtonFormField<PreferredTravelMode?>(
+              initialValue: _travelMode,
+              decoration: const InputDecoration(
+                labelText: 'Preferred travel mode (optional)',
+              ),
+              items: [
+                const DropdownMenuItem<PreferredTravelMode?>(
+                  value: null,
+                  child: Text('Not specified'),
+                ),
+                for (final mode in PreferredTravelMode.values)
+                  DropdownMenuItem(value: mode, child: Text(mode.value)),
+              ],
+              onChanged: (value) => setState(() => _travelMode = value),
+            ),
+            const SizedBox(height: 12),
+            const Align(
+              alignment: Alignment.centerLeft,
+              child: Text(
+                'Trip starting point (optional)',
+                style: TextStyle(fontWeight: FontWeight.w600),
+              ),
+            ),
+            const Align(
+              alignment: Alignment.centerLeft,
+              child: Text(
+                'Enter the trip origin separately. Live GPS will not replace it.',
+              ),
+            ),
+            const SizedBox(height: 8),
+            Row(
+              children: [
+                Expanded(
+                  child: _coordinateField(
+                    'Latitude',
+                    _originLatitudeController,
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: _coordinateField(
+                    'Longitude',
+                    _originLongitudeController,
+                  ),
+                ),
+                IconButton(
+                  tooltip: 'Clear trip starting point',
+                  onPressed: () => setState(() {
+                    _originLatitudeController.clear();
+                    _originLongitudeController.clear();
+                  }),
+                  icon: const Icon(Icons.clear),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _countField(String label, TextEditingController controller) =>
+      TextField(
+        controller: controller,
+        keyboardType: TextInputType.number,
+        onChanged: (_) => setState(() {}),
+        decoration: InputDecoration(labelText: label, isDense: true),
+      );
+
+  Widget _coordinateField(String label, TextEditingController controller) =>
+      TextField(
+        controller: controller,
+        keyboardType: const TextInputType.numberWithOptions(
+          decimal: true,
+          signed: true,
+        ),
+        decoration: InputDecoration(labelText: label, isDense: true),
+      );
+
+  Widget _dateChip({
+    Key? key,
+    required String label,
+    required DateTime date,
+    required VoidCallback onTap,
+  }) {
     return _Tappable(
       key: key,
       onTap: onTap,
@@ -640,27 +1328,59 @@ class _PlanPageState extends State<PlanPage> with TickerProviderStateMixin {
           color: Colors.white,
           borderRadius: BorderRadius.circular(18),
           border: Border.all(color: _P.iceBlue, width: 1.2),
-          boxShadow: [BoxShadow(color: _P.deepNavy.withValues(alpha: 0.04), blurRadius: 10, offset: const Offset(0, 4))],
+          boxShadow: [
+            BoxShadow(
+              color: _P.deepNavy.withValues(alpha: 0.04),
+              blurRadius: 10,
+              offset: const Offset(0, 4),
+            ),
+          ],
         ),
         child: Row(
           children: [
             Container(
               padding: const EdgeInsets.all(9),
-              decoration: BoxDecoration(color: _P.iceBlue, borderRadius: BorderRadius.circular(12)),
-              child: const Icon(Icons.calendar_today_rounded, color: _P.blue, size: 17),
+              decoration: BoxDecoration(
+                color: _P.iceBlue,
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: const Icon(
+                Icons.calendar_today_rounded,
+                color: _P.blue,
+                size: 17,
+              ),
             ),
             const SizedBox(width: 12),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(label, style: const TextStyle(color: _P.inkSoft, fontSize: 10.5, fontWeight: FontWeight.w700, letterSpacing: 0.2)),
+                  Text(
+                    label,
+                    style: const TextStyle(
+                      color: _P.inkSoft,
+                      fontSize: 10.5,
+                      fontWeight: FontWeight.w700,
+                      letterSpacing: 0.2,
+                    ),
+                  ),
                   const SizedBox(height: 2),
-                  Text(_formatDate(date), style: const TextStyle(color: _P.deepNavy, fontSize: 14, fontWeight: FontWeight.w800)),
+                  Text(
+                    _formatDate(date),
+                    style: const TextStyle(
+                      color: _P.deepNavy,
+                      fontSize: 14,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
                 ],
               ),
             ),
-            const Icon(Icons.chevron_right_rounded, color: _P.inkSoft, size: 19),
+            const Icon(
+              Icons.chevron_right_rounded,
+              color: _P.inkSoft,
+              size: 19,
+            ),
           ],
         ),
       ),
@@ -679,8 +1399,15 @@ class _PlanPageState extends State<PlanPage> with TickerProviderStateMixin {
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            const Text('Select destination',
-                style: TextStyle(color: _P.deepNavy, fontSize: 18, fontWeight: FontWeight.w800, letterSpacing: -0.3)),
+            const Text(
+              'Select destination',
+              style: TextStyle(
+                color: _P.deepNavy,
+                fontSize: 18,
+                fontWeight: FontWeight.w800,
+                letterSpacing: -0.3,
+              ),
+            ),
             _selectedCountBadge(_selectedDestinations.length),
           ],
         ),
@@ -693,14 +1420,15 @@ class _PlanPageState extends State<PlanPage> with TickerProviderStateMixin {
           const SizedBox(height: 14),
           _buildPictureList(
             query: _daySearchQuery,
-            isSelected: (i) => _selectedDestinations.contains(i),
+            isSelected: (i) => _selectedDestinations.contains(_records[i].id),
             dimmedIndices: const {},
             onToggle: (i) => setState(() {
-              if (_selectedDestinations.contains(i)) {
-                _selectedDestinations.remove(i);
+              final id = _records[i].id;
+              if (_selectedDestinations.contains(id)) {
+                _selectedDestinations.remove(id);
                 _timeSchedule.remove(i);
               } else {
-                _selectedDestinations.add(i);
+                _selectedDestinations.add(id);
               }
             }),
             timeSchedule: _timeSchedule,
@@ -710,24 +1438,113 @@ class _PlanPageState extends State<PlanPage> with TickerProviderStateMixin {
           // Collapsed view — only the preselected destination(s) show here
           _buildPictureList(
             query: '',
-            isSelected: (i) => _selectedDestinations.contains(i),
+            isSelected: (i) => _selectedDestinations.contains(_records[i].id),
             dimmedIndices: const {},
             onToggle: (i) => setState(() {
-              if (_selectedDestinations.contains(i)) {
-                _selectedDestinations.remove(i);
+              final id = _records[i].id;
+              if (_selectedDestinations.contains(id)) {
+                _selectedDestinations.remove(id);
                 _timeSchedule.remove(i);
               } else {
-                _selectedDestinations.add(i);
+                _selectedDestinations.add(id);
               }
             }),
             timeSchedule: _timeSchedule,
             onSetTime: _showTimeScheduleSheet,
-            onlyShowIndices: _selectedDestinations,
+            onlyShowIndices: {
+              for (var i = 0; i < _records.length; i++)
+                if (_selectedDestinations.contains(_records[i].id)) i,
+            },
           ),
           const SizedBox(height: 14),
           _addMoreDestinationsButton(),
         ],
+        _buildSelectedDestinationOrder(_selectedDestinations),
       ],
+    );
+  }
+
+  Widget _buildSelectedDestinationOrder(
+    Set<String> selections, {
+    int? dayNumber,
+  }) {
+    final recordsById = {for (final record in _records) record.id: record};
+    final orderedRecords = selections
+        .map((id) => recordsById[id])
+        .whereType<DestinationRecord>()
+        .toList();
+    if (orderedRecords.isEmpty) return const SizedBox.shrink();
+
+    final heading = dayNumber == null
+        ? 'Itinerary order'
+        : 'Day $dayNumber order';
+    return Padding(
+      padding: const EdgeInsets.only(top: 18),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            heading,
+            style: const TextStyle(
+              color: _P.deepNavy,
+              fontSize: 16,
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            dayNumber == null
+                ? 'Use the arrows to arrange selected destinations.'
+                : 'Move destinations within this day. Day assignments stay unchanged.',
+            style: const TextStyle(color: _P.inkSoft, fontSize: 12),
+          ),
+          const SizedBox(height: 8),
+          for (var index = 0; index < orderedRecords.length; index++)
+            Card(
+              key: Key('ordered_stop_${orderedRecords[index].id}'),
+              margin: const EdgeInsets.only(bottom: 6),
+              child: ListTile(
+                dense: true,
+                leading: CircleAvatar(radius: 15, child: Text('${index + 1}')),
+                title: Text(orderedRecords[index].name),
+                subtitle: Text(orderedRecords[index].location),
+                trailing: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    IconButton(
+                      key: Key('reorder_up_${orderedRecords[index].id}'),
+                      tooltip: 'Move ${orderedRecords[index].name} earlier',
+                      onPressed: index == 0
+                          ? null
+                          : () => setState(
+                              () => moveDestinationWithinDay(
+                                selections,
+                                destinationId: orderedRecords[index].id,
+                                offset: -1,
+                              ),
+                            ),
+                      icon: const Icon(Icons.arrow_upward),
+                    ),
+                    IconButton(
+                      key: Key('reorder_down_${orderedRecords[index].id}'),
+                      tooltip: 'Move ${orderedRecords[index].name} later',
+                      onPressed: index == orderedRecords.length - 1
+                          ? null
+                          : () => setState(
+                              () => moveDestinationWithinDay(
+                                selections,
+                                destinationId: orderedRecords[index].id,
+                                offset: 1,
+                              ),
+                            ),
+                      icon: const Icon(Icons.arrow_downward),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+        ],
+      ),
     );
   }
 
@@ -748,8 +1565,14 @@ class _PlanPageState extends State<PlanPage> with TickerProviderStateMixin {
           children: [
             Icon(Icons.add_circle_outline_rounded, color: _P.blue, size: 20),
             SizedBox(width: 8),
-            Text('Add more destinations',
-                style: TextStyle(color: _P.blue, fontSize: 14, fontWeight: FontWeight.w700)),
+            Text(
+              'Add more destinations',
+              style: TextStyle(
+                color: _P.blue,
+                fontSize: 14,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
           ],
         ),
       ),
@@ -768,22 +1591,40 @@ class _PlanPageState extends State<PlanPage> with TickerProviderStateMixin {
         Row(
           children: [
             Container(
-              width: 6, height: 22,
+              width: 6,
+              height: 22,
               decoration: BoxDecoration(
-                gradient: const LinearGradient(colors: [_P.skyBlue, _P.blue], begin: Alignment.topCenter, end: Alignment.bottomCenter),
+                gradient: const LinearGradient(
+                  colors: [_P.skyBlue, _P.blue],
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                ),
                 borderRadius: BorderRadius.circular(4),
               ),
             ),
             const SizedBox(width: 10),
-            Text('Itinerary Escape',
-                style: const TextStyle(color: _P.deepNavy, fontSize: 18, fontWeight: FontWeight.w800, letterSpacing: -0.3)),
+            Text(
+              'Itinerary Escape',
+              style: const TextStyle(
+                color: _P.deepNavy,
+                fontSize: 18,
+                fontWeight: FontWeight.w800,
+                letterSpacing: -0.3,
+              ),
+            ),
           ],
         ),
         const SizedBox(height: 4),
         Padding(
           padding: const EdgeInsets.only(left: 16),
-          child: Text('Multiple Destinations • $_tripDays Day Itinerary',
-              style: const TextStyle(color: _P.inkSoft, fontSize: 13, fontWeight: FontWeight.w500)),
+          child: Text(
+            'Multiple Destinations • $_tripDays Day Itinerary',
+            style: const TextStyle(
+              color: _P.inkSoft,
+              fontSize: 13,
+              fontWeight: FontWeight.w500,
+            ),
+          ),
         ),
         const SizedBox(height: 18),
         ...List.generate(_tripDays, (dayIdx) => _buildDayBlock(dayIdx)),
@@ -802,7 +1643,13 @@ class _PlanPageState extends State<PlanPage> with TickerProviderStateMixin {
         color: Colors.white,
         borderRadius: BorderRadius.circular(22),
         border: Border.all(color: _P.iceBlue, width: 1.2),
-        boxShadow: [BoxShadow(color: _P.deepNavy.withValues(alpha: 0.04), blurRadius: 12, offset: const Offset(0, 4))],
+        boxShadow: [
+          BoxShadow(
+            color: _P.deepNavy.withValues(alpha: 0.04),
+            blurRadius: 12,
+            offset: const Offset(0, 4),
+          ),
+        ],
       ),
       child: Theme(
         data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
@@ -814,19 +1661,36 @@ class _PlanPageState extends State<PlanPage> with TickerProviderStateMixin {
           title: Row(
             children: [
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 6,
+                ),
                 decoration: BoxDecoration(
-                  gradient: const LinearGradient(colors: [_P.deepNavy, _P.navy]),
+                  gradient: const LinearGradient(
+                    colors: [_P.deepNavy, _P.navy],
+                  ),
                   borderRadius: BorderRadius.circular(50),
                 ),
-                child: Text('Day ${dayIdx + 1}',
-                    style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.w800)),
+                child: Text(
+                  'Day ${dayIdx + 1}',
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 12,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
               ),
               const SizedBox(width: 10),
               Expanded(
-                child: Text(_relativeDayLabel(date),
-                    style: const TextStyle(color: _P.inkSoft, fontSize: 13, fontWeight: FontWeight.w600),
-                    overflow: TextOverflow.ellipsis),
+                child: Text(
+                  _relativeDayLabel(date),
+                  style: const TextStyle(
+                    color: _P.inkSoft,
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                  ),
+                  overflow: TextOverflow.ellipsis,
+                ),
               ),
               _selectedCountBadge(picks.length),
             ],
@@ -839,19 +1703,24 @@ class _PlanPageState extends State<PlanPage> with TickerProviderStateMixin {
             const SizedBox(height: 12),
             _buildPictureList(
               query: _daySearchQueries[dayIdx],
-              isSelected: (i) => picks.contains(i),
+              isSelected: (i) => picks.contains(_records[i].id),
               dimmedIndices: {
                 for (var i = 0; i < _samalDestinations.length; i++)
                   if (_isUsedOnEarlierDay(i, dayIdx)) i,
               },
               onToggle: (i) => setState(() {
-                if (picks.contains(i)) {
-                  picks.remove(i);
+                final id = _records[i].id;
+                if (picks.contains(id)) {
+                  picks.remove(id);
                 } else {
-                  picks.add(i);
+                  for (final day in _dayDestinations) {
+                    day.remove(id);
+                  }
+                  picks.add(id);
                 }
               }),
             ),
+            _buildSelectedDestinationOrder(picks, dayNumber: dayIdx + 1),
           ],
         ),
       ),
@@ -868,12 +1737,14 @@ class _PlanPageState extends State<PlanPage> with TickerProviderStateMixin {
           color: count == 0 ? _P.iceBlue : _P.blue.withValues(alpha: 0.12),
           borderRadius: BorderRadius.circular(50),
         ),
-        child: Text('$count selected',
-            style: TextStyle(
-              color: count == 0 ? _P.inkSoft : _P.blue,
-              fontSize: 12,
-              fontWeight: FontWeight.w800,
-            )),
+        child: Text(
+          '$count selected',
+          style: TextStyle(
+            color: count == 0 ? _P.inkSoft : _P.blue,
+            fontSize: 12,
+            fontWeight: FontWeight.w800,
+          ),
+        ),
       ),
     );
   }
@@ -882,7 +1753,10 @@ class _PlanPageState extends State<PlanPage> with TickerProviderStateMixin {
   //  SEARCH FIELD
   // ═══════════════════════════════════════════════════════════════
 
-  Widget _searchField({required String hint, required ValueChanged<String> onChanged}) {
+  Widget _searchField({
+    required String hint,
+    required ValueChanged<String> onChanged,
+  }) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16),
       decoration: BoxDecoration(
@@ -897,10 +1771,18 @@ class _PlanPageState extends State<PlanPage> with TickerProviderStateMixin {
           Expanded(
             child: TextField(
               onChanged: onChanged,
-              style: const TextStyle(color: _P.deepNavy, fontSize: 14, fontWeight: FontWeight.w500),
+              style: const TextStyle(
+                color: _P.deepNavy,
+                fontSize: 14,
+                fontWeight: FontWeight.w500,
+              ),
               decoration: InputDecoration(
                 hintText: hint,
-                hintStyle: const TextStyle(color: _P.inkSoft, fontSize: 13.5, fontWeight: FontWeight.w500),
+                hintStyle: const TextStyle(
+                  color: _P.inkSoft,
+                  fontSize: 13.5,
+                  fontWeight: FontWeight.w500,
+                ),
                 border: InputBorder.none,
                 contentPadding: const EdgeInsets.symmetric(vertical: 13),
               ),
@@ -925,8 +1807,12 @@ class _PlanPageState extends State<PlanPage> with TickerProviderStateMixin {
     Set<int>? onlyShowIndices, // NEW
   }) {
     final q = query.trim().toLowerCase();
-    final indices = List.generate(_samalDestinations.length, (i) => i).where((i) {
-      if (onlyShowIndices != null && !onlyShowIndices.contains(i)) return false; // NEW
+    final indices = List.generate(_samalDestinations.length, (i) => i).where((
+      i,
+    ) {
+      if (onlyShowIndices != null && !onlyShowIndices.contains(i)) {
+        return false; // NEW
+      }
       if (q.isEmpty) return true;
       final d = _samalDestinations[i];
       return d.name.toLowerCase().contains(q) ||
@@ -942,7 +1828,11 @@ class _PlanPageState extends State<PlanPage> with TickerProviderStateMixin {
             _isLoadingDestinations
                 ? 'Loading tourist spots across Samal Island…'
                 : 'No spots match "$query"',
-            style: const TextStyle(color: _P.inkSoft, fontSize: 13, fontWeight: FontWeight.w500),
+            style: const TextStyle(
+              color: _P.inkSoft,
+              fontSize: 13,
+              fontWeight: FontWeight.w500,
+            ),
           ),
         ),
       );
@@ -960,7 +1850,9 @@ class _PlanPageState extends State<PlanPage> with TickerProviderStateMixin {
         final dimmed = dimmedIndices.contains(i) && !selected;
         final gradient = _catGradient(dest.category);
         final schedule = timeSchedule?[i];
-        final hasTime = schedule != null && (schedule.arrival != null || schedule.departure != null);
+        final hasTime =
+            schedule != null &&
+            (schedule.arrival != null || schedule.departure != null);
 
         return AnimatedOpacity(
           duration: const Duration(milliseconds: 250),
@@ -974,7 +1866,11 @@ class _PlanPageState extends State<PlanPage> with TickerProviderStateMixin {
                 icon: _catIcon(dest.category),
                 gradient: gradient,
                 isSelected: selected,
-                onTap: () => _openDetailSheet(i, isSelected: selected, onToggle: () => onToggle(i)),
+                onTap: () => _openDetailSheet(
+                  i,
+                  isSelected: selected,
+                  onToggle: () => onToggle(i),
+                ),
                 onQuickToggle: () => onToggle(i),
                 imageUrl: _getDestinationImageUrl(dest.name),
               ),
@@ -985,38 +1881,64 @@ class _PlanPageState extends State<PlanPage> with TickerProviderStateMixin {
                   curve: Curves.easeOutCubic,
                   child: Container(
                     margin: const EdgeInsets.only(top: 6),
-                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 14,
+                      vertical: 10,
+                    ),
                     decoration: BoxDecoration(
                       color: _P.iceBlue,
                       borderRadius: BorderRadius.circular(16),
-                      border: Border.all(color: _P.blue.withValues(alpha: 0.15)),
+                      border: Border.all(
+                        color: _P.blue.withValues(alpha: 0.15),
+                      ),
                     ),
                     child: Row(
                       children: [
-                        const Icon(Icons.schedule_rounded, color: _P.blue, size: 18),
+                        const Icon(
+                          Icons.schedule_rounded,
+                          color: _P.blue,
+                          size: 18,
+                        ),
                         const SizedBox(width: 10),
                         Expanded(
                           child: hasTime
                               ? Text(
                                   '${_formatTimeOfDay(schedule.arrival)} → ${_formatTimeOfDay(schedule.departure)}',
-                                  style: const TextStyle(color: _P.deepNavy, fontSize: 13, fontWeight: FontWeight.w700),
+                                  style: const TextStyle(
+                                    color: _P.deepNavy,
+                                    fontSize: 13,
+                                    fontWeight: FontWeight.w700,
+                                  ),
                                 )
                               : const Text(
                                   'No time set yet',
-                                  style: TextStyle(color: _P.inkSoft, fontSize: 13, fontWeight: FontWeight.w600),
+                                  style: TextStyle(
+                                    color: _P.inkSoft,
+                                    fontSize: 13,
+                                    fontWeight: FontWeight.w600,
+                                  ),
                                 ),
                         ),
                         GestureDetector(
                           onTap: () => onSetTime(i),
                           child: Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 12,
+                              vertical: 6,
+                            ),
                             decoration: BoxDecoration(
-                              gradient: const LinearGradient(colors: [_P.blue, _P.deepNavy]),
+                              gradient: const LinearGradient(
+                                colors: [_P.blue, _P.deepNavy],
+                              ),
                               borderRadius: BorderRadius.circular(50),
                             ),
                             child: Text(
                               hasTime ? 'Edit' : 'Set Time',
-                              style: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.w800),
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 11,
+                                fontWeight: FontWeight.w800,
+                              ),
                             ),
                           ),
                         ),
@@ -1041,8 +1963,10 @@ class _PlanPageState extends State<PlanPage> with TickerProviderStateMixin {
 
   void _showTimeScheduleSheet(int destIndex) {
     final existing = _timeSchedule[destIndex];
-    TimeOfDay arrival = existing?.arrival ?? const TimeOfDay(hour: 8, minute: 0);
-    TimeOfDay departure = existing?.departure ?? const TimeOfDay(hour: 12, minute: 0);
+    TimeOfDay arrival =
+        existing?.arrival ?? const TimeOfDay(hour: 8, minute: 0);
+    TimeOfDay departure =
+        existing?.departure ?? const TimeOfDay(hour: 12, minute: 0);
     final dest = _samalDestinations[destIndex];
 
     showModalBottomSheet(
@@ -1065,7 +1989,13 @@ class _PlanPageState extends State<PlanPage> with TickerProviderStateMixin {
               decoration: BoxDecoration(
                 color: Colors.white,
                 borderRadius: BorderRadius.circular(28),
-                boxShadow: [BoxShadow(color: _P.deepNavy.withValues(alpha: 0.15), blurRadius: 30, offset: const Offset(0, -5))],
+                boxShadow: [
+                  BoxShadow(
+                    color: _P.deepNavy.withValues(alpha: 0.15),
+                    blurRadius: 30,
+                    offset: const Offset(0, -5),
+                  ),
+                ],
               ),
               child: Column(
                 mainAxisSize: MainAxisSize.min,
@@ -1077,19 +2007,40 @@ class _PlanPageState extends State<PlanPage> with TickerProviderStateMixin {
                       Container(
                         padding: const EdgeInsets.all(10),
                         decoration: BoxDecoration(
-                          gradient: const LinearGradient(colors: [_P.blue, _P.deepNavy]),
+                          gradient: const LinearGradient(
+                            colors: [_P.blue, _P.deepNavy],
+                          ),
                           borderRadius: BorderRadius.circular(14),
                         ),
-                        child: const Icon(Icons.schedule_rounded, color: Colors.white, size: 20),
+                        child: const Icon(
+                          Icons.schedule_rounded,
+                          color: Colors.white,
+                          size: 20,
+                        ),
                       ),
                       const SizedBox(width: 14),
                       Expanded(
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            const Text('Set Visit Schedule', style: TextStyle(color: _P.deepNavy, fontSize: 17, fontWeight: FontWeight.w800)),
+                            const Text(
+                              'Set Visit Schedule',
+                              style: TextStyle(
+                                color: _P.deepNavy,
+                                fontSize: 17,
+                                fontWeight: FontWeight.w800,
+                              ),
+                            ),
                             const SizedBox(height: 2),
-                            Text(dest.name, style: const TextStyle(color: _P.inkSoft, fontSize: 13, fontWeight: FontWeight.w600), overflow: TextOverflow.ellipsis),
+                            Text(
+                              dest.name,
+                              style: const TextStyle(
+                                color: _P.inkSoft,
+                                fontSize: 13,
+                                fontWeight: FontWeight.w600,
+                              ),
+                              overflow: TextOverflow.ellipsis,
+                            ),
                           ],
                         ),
                       ),
@@ -1110,7 +2061,10 @@ class _PlanPageState extends State<PlanPage> with TickerProviderStateMixin {
                         builder: (context, child) {
                           return Theme(
                             data: Theme.of(context).copyWith(
-                              colorScheme: const ColorScheme.light(primary: _P.blue, secondary: _P.skyBlue),
+                              colorScheme: const ColorScheme.light(
+                                primary: _P.blue,
+                                secondary: _P.skyBlue,
+                              ),
                             ),
                             child: child!,
                           );
@@ -1134,13 +2088,18 @@ class _PlanPageState extends State<PlanPage> with TickerProviderStateMixin {
                         builder: (context, child) {
                           return Theme(
                             data: Theme.of(context).copyWith(
-                              colorScheme: const ColorScheme.light(primary: _P.blue, secondary: _P.skyBlue),
+                              colorScheme: const ColorScheme.light(
+                                primary: _P.blue,
+                                secondary: _P.skyBlue,
+                              ),
                             ),
                             child: child!,
                           );
                         },
                       );
-                      if (picked != null) setLocalState(() => departure = picked);
+                      if (picked != null) {
+                        setLocalState(() => departure = picked);
+                      }
                     },
                   ),
                   const SizedBox(height: 20),
@@ -1148,7 +2107,10 @@ class _PlanPageState extends State<PlanPage> with TickerProviderStateMixin {
                   // Duration indicator
                   Container(
                     width: double.infinity,
-                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 12,
+                    ),
                     decoration: BoxDecoration(
                       color: _P.iceBlue,
                       borderRadius: BorderRadius.circular(14),
@@ -1156,23 +2118,41 @@ class _PlanPageState extends State<PlanPage> with TickerProviderStateMixin {
                     child: Row(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        const Icon(Icons.timelapse_rounded, color: _P.blue, size: 18),
+                        const Icon(
+                          Icons.timelapse_rounded,
+                          color: _P.blue,
+                          size: 18,
+                        ),
                         const SizedBox(width: 8),
-                        Builder(builder: (_) {
-                          final startMins = arrival.hour * 60 + arrival.minute;
-                          final endMins = departure.hour * 60 + departure.minute;
-                          final diff = endMins - startMins;
-                          if (diff <= 0) {
-                            return const Text('Invalid time range',
-                                style: TextStyle(color: Color(0xFFE53935), fontSize: 13, fontWeight: FontWeight.w700));
-                          }
-                          final hours = diff ~/ 60;
-                          final mins = diff % 60;
-                          return Text(
-                            'Duration: ${hours}h ${mins > 0 ? '${mins}m' : ''}',
-                            style: const TextStyle(color: _P.deepNavy, fontSize: 14, fontWeight: FontWeight.w800),
-                          );
-                        }),
+                        Builder(
+                          builder: (_) {
+                            final startMins =
+                                arrival.hour * 60 + arrival.minute;
+                            final endMins =
+                                departure.hour * 60 + departure.minute;
+                            final diff = endMins - startMins;
+                            if (diff <= 0) {
+                              return const Text(
+                                'Invalid time range',
+                                style: TextStyle(
+                                  color: Color(0xFFE53935),
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.w700,
+                                ),
+                              );
+                            }
+                            final hours = diff ~/ 60;
+                            final mins = diff % 60;
+                            return Text(
+                              'Duration: ${hours}h ${mins > 0 ? '${mins}m' : ''}',
+                              style: const TextStyle(
+                                color: _P.deepNavy,
+                                fontSize: 14,
+                                fontWeight: FontWeight.w800,
+                              ),
+                            );
+                          },
+                        ),
                       ],
                     ),
                   ),
@@ -1182,7 +2162,10 @@ class _PlanPageState extends State<PlanPage> with TickerProviderStateMixin {
                   GestureDetector(
                     onTap: () {
                       setState(() {
-                        _timeSchedule[destIndex] = (arrival: arrival, departure: departure);
+                        _timeSchedule[destIndex] = (
+                          arrival: arrival,
+                          departure: departure,
+                        );
                       });
                       Navigator.pop(ctx);
                     },
@@ -1190,12 +2173,27 @@ class _PlanPageState extends State<PlanPage> with TickerProviderStateMixin {
                       width: double.infinity,
                       padding: const EdgeInsets.symmetric(vertical: 16),
                       decoration: BoxDecoration(
-                        gradient: const LinearGradient(colors: [_P.blue, _P.deepNavy]),
+                        gradient: const LinearGradient(
+                          colors: [_P.blue, _P.deepNavy],
+                        ),
                         borderRadius: BorderRadius.circular(50),
-                        boxShadow: [BoxShadow(color: _P.deepNavy.withValues(alpha: 0.25), blurRadius: 12, offset: const Offset(0, 4))],
+                        boxShadow: [
+                          BoxShadow(
+                            color: _P.deepNavy.withValues(alpha: 0.25),
+                            blurRadius: 12,
+                            offset: const Offset(0, 4),
+                          ),
+                        ],
                       ),
                       child: const Center(
-                        child: Text('Save Schedule', style: TextStyle(color: Colors.white, fontSize: 15, fontWeight: FontWeight.w800)),
+                        child: Text(
+                          'Save Schedule',
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontSize: 15,
+                            fontWeight: FontWeight.w800,
+                          ),
+                        ),
                       ),
                     ),
                   ),
@@ -1223,7 +2221,13 @@ class _PlanPageState extends State<PlanPage> with TickerProviderStateMixin {
           color: Colors.white,
           borderRadius: BorderRadius.circular(16),
           border: Border.all(color: _P.iceBlue, width: 1.5),
-          boxShadow: [BoxShadow(color: _P.deepNavy.withValues(alpha: 0.04), blurRadius: 8, offset: const Offset(0, 2))],
+          boxShadow: [
+            BoxShadow(
+              color: _P.deepNavy.withValues(alpha: 0.04),
+              blurRadius: 8,
+              offset: const Offset(0, 2),
+            ),
+          ],
         ),
         child: Row(
           children: [
@@ -1240,15 +2244,32 @@ class _PlanPageState extends State<PlanPage> with TickerProviderStateMixin {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(label, style: const TextStyle(color: _P.inkSoft, fontSize: 11, fontWeight: FontWeight.w700)),
+                  Text(
+                    label,
+                    style: const TextStyle(
+                      color: _P.inkSoft,
+                      fontSize: 11,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
                   const SizedBox(height: 2),
-                  Text(time, style: const TextStyle(color: _P.deepNavy, fontSize: 16, fontWeight: FontWeight.w800)),
+                  Text(
+                    time,
+                    style: const TextStyle(
+                      color: _P.deepNavy,
+                      fontSize: 16,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
                 ],
               ),
             ),
             Container(
               padding: const EdgeInsets.all(8),
-              decoration: BoxDecoration(color: _P.iceBlue, borderRadius: BorderRadius.circular(10)),
+              decoration: BoxDecoration(
+                color: _P.iceBlue,
+                borderRadius: BorderRadius.circular(10),
+              ),
               child: const Icon(Icons.edit_rounded, color: _P.blue, size: 16),
             ),
           ],
@@ -1271,7 +2292,9 @@ class _PlanPageState extends State<PlanPage> with TickerProviderStateMixin {
       child: AnimatedBuilder(
         animation: _pulseController,
         builder: (context, child) {
-          final pulse = hasSelection && !_isOptimizing ? _pulseController.value : 0.0;
+          final pulse = hasSelection && !_isOptimizing
+              ? _pulseController.value
+              : 0.0;
           return AnimatedContainer(
             duration: const Duration(milliseconds: 300),
             width: double.infinity,
@@ -1284,7 +2307,13 @@ class _PlanPageState extends State<PlanPage> with TickerProviderStateMixin {
               ),
               borderRadius: BorderRadius.circular(50),
               boxShadow: hasSelection
-                  ? [BoxShadow(color: _P.blue.withValues(alpha: 0.28 + (pulse * 0.14)), blurRadius: 18 + (pulse * 8), offset: const Offset(0, 8))]
+                  ? [
+                      BoxShadow(
+                        color: _P.blue.withValues(alpha: 0.28 + (pulse * 0.14)),
+                        blurRadius: 18 + (pulse * 8),
+                        offset: const Offset(0, 8),
+                      ),
+                    ]
                   : null,
             ),
             child: child,
@@ -1295,18 +2324,29 @@ class _PlanPageState extends State<PlanPage> with TickerProviderStateMixin {
           children: [
             if (_isOptimizing)
               const SizedBox(
-                width: 19, height: 19,
-                child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2.5),
+                width: 19,
+                height: 19,
+                child: CircularProgressIndicator(
+                  color: Colors.white,
+                  strokeWidth: 2.5,
+                ),
               )
             else
-              Icon(Icons.auto_fix_high_rounded,
-                  color: hasSelection ? Colors.white : _P.inkSoft, size: 20),
+              Icon(
+                Icons.auto_fix_high_rounded,
+                color: hasSelection ? Colors.white : _P.inkSoft,
+                size: 20,
+              ),
             const SizedBox(width: 10),
             Text(
-              _isOptimizing ? 'Running MOGA optimization…' : 'Optimize route',
+              _isOptimizing
+                  ? 'Running MO-GA optimization…'
+                  : 'Review manual draft',
               style: TextStyle(
                 color: hasSelection ? Colors.white : _P.inkSoft,
-                fontSize: 16, fontWeight: FontWeight.w700, letterSpacing: -0.1,
+                fontSize: 16,
+                fontWeight: FontWeight.w700,
+                letterSpacing: -0.1,
               ),
             ),
           ],
@@ -1353,10 +2393,15 @@ class _DestinationPictureCard extends StatelessWidget {
         decoration: BoxDecoration(
           color: Colors.white,
           borderRadius: BorderRadius.circular(20),
-          border: Border.all(color: isSelected ? _P.blue : _P.iceBlue, width: isSelected ? 1.8 : 1.2),
+          border: Border.all(
+            color: isSelected ? _P.blue : _P.iceBlue,
+            width: isSelected ? 1.8 : 1.2,
+          ),
           boxShadow: [
             BoxShadow(
-              color: isSelected ? _P.blue.withValues(alpha: 0.18) : _P.deepNavy.withValues(alpha: 0.04),
+              color: isSelected
+                  ? _P.blue.withValues(alpha: 0.18)
+                  : _P.deepNavy.withValues(alpha: 0.04),
               blurRadius: isSelected ? 16 : 8,
               offset: const Offset(0, 4),
             ),
@@ -1369,7 +2414,9 @@ class _DestinationPictureCard extends StatelessWidget {
             Stack(
               children: [
                 ClipRRect(
-                  borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
+                  borderRadius: const BorderRadius.vertical(
+                    top: Radius.circular(20),
+                  ),
                   child: Image.network(
                     imageUrl,
                     height: 110,
@@ -1379,10 +2426,18 @@ class _DestinationPictureCard extends StatelessWidget {
                       height: 110,
                       width: double.infinity,
                       decoration: BoxDecoration(
-                        gradient: LinearGradient(colors: gradient, begin: Alignment.topLeft, end: Alignment.bottomRight),
+                        gradient: LinearGradient(
+                          colors: gradient,
+                          begin: Alignment.topLeft,
+                          end: Alignment.bottomRight,
+                        ),
                       ),
                       child: Center(
-                        child: Icon(icon, size: 34, color: Colors.white.withValues(alpha: 0.9)),
+                        child: Icon(
+                          icon,
+                          size: 34,
+                          color: Colors.white.withValues(alpha: 0.9),
+                        ),
                       ),
                     ),
                   ),
@@ -1394,11 +2449,20 @@ class _DestinationPictureCard extends StatelessWidget {
                     onTap: onQuickToggle,
                     child: AnimatedContainer(
                       duration: const Duration(milliseconds: 200),
-                      width: 30, height: 30,
+                      width: 30,
+                      height: 30,
                       decoration: BoxDecoration(
-                        color: isSelected ? _P.blue : Colors.white.withValues(alpha: 0.92),
+                        color: isSelected
+                            ? _P.blue
+                            : Colors.white.withValues(alpha: 0.92),
                         borderRadius: BorderRadius.circular(9),
-                        boxShadow: [BoxShadow(color: _P.deepNavy.withValues(alpha: 0.15), blurRadius: 6, offset: const Offset(0, 2))],
+                        boxShadow: [
+                          BoxShadow(
+                            color: _P.deepNavy.withValues(alpha: 0.15),
+                            blurRadius: 6,
+                            offset: const Offset(0, 2),
+                          ),
+                        ],
                       ),
                       child: Icon(
                         isSelected ? Icons.check_rounded : Icons.add_rounded,
@@ -1412,7 +2476,10 @@ class _DestinationPictureCard extends StatelessWidget {
                   bottom: 10,
                   left: 12,
                   child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 10,
+                      vertical: 5,
+                    ),
                     decoration: BoxDecoration(
                       color: Colors.white.withValues(alpha: 0.92),
                       borderRadius: BorderRadius.circular(50),
@@ -1420,10 +2487,20 @@ class _DestinationPictureCard extends StatelessWidget {
                     child: Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        const Icon(Icons.schedule_rounded, color: _P.blue, size: 12),
+                        const Icon(
+                          Icons.schedule_rounded,
+                          color: _P.blue,
+                          size: 12,
+                        ),
                         const SizedBox(width: 4),
-                        Text('${visitHours}h',
-                            style: const TextStyle(color: _P.navy, fontSize: 11.5, fontWeight: FontWeight.w800)),
+                        Text(
+                          '${visitHours}h',
+                          style: const TextStyle(
+                            color: _P.navy,
+                            fontSize: 11.5,
+                            fontWeight: FontWeight.w800,
+                          ),
+                        ),
                       ],
                     ),
                   ),
@@ -1439,22 +2516,46 @@ class _DestinationPictureCard extends StatelessWidget {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text(name, style: const TextStyle(color: _P.deepNavy, fontSize: 15, fontWeight: FontWeight.w800, letterSpacing: -0.1)),
+                        Text(
+                          name,
+                          style: const TextStyle(
+                            color: _P.deepNavy,
+                            fontSize: 15,
+                            fontWeight: FontWeight.w800,
+                            letterSpacing: -0.1,
+                          ),
+                        ),
                         const SizedBox(height: 3),
                         Row(
                           children: [
-                            const Icon(Icons.location_on_rounded, color: _P.inkSoft, size: 12),
+                            const Icon(
+                              Icons.location_on_rounded,
+                              color: _P.inkSoft,
+                              size: 12,
+                            ),
                             const SizedBox(width: 3),
-                            Expanded(child: Text(location,
-                                style: const TextStyle(color: _P.inkSoft, fontSize: 12, fontWeight: FontWeight.w500),
-                                overflow: TextOverflow.ellipsis)),
+                            Expanded(
+                              child: Text(
+                                location,
+                                style: const TextStyle(
+                                  color: _P.inkSoft,
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w500,
+                                ),
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ),
                           ],
                         ),
                       ],
                     ),
                   ),
                   const SizedBox(width: 8),
-                  Icon(Icons.chevron_right_rounded, color: _P.inkSoft.withValues(alpha: 0.5), size: 20),
+                  Icon(
+                    Icons.chevron_right_rounded,
+                    color: _P.inkSoft.withValues(alpha: 0.5),
+                    size: 20,
+                  ),
                 ],
               ),
             ),
@@ -1471,7 +2572,7 @@ class _DestinationPictureCard extends StatelessWidget {
 
 class _DestinationDetailSheet extends StatefulWidget {
   final Destination destination;
-  final double rating;
+  final double? rating;
   final String blurb;
   final List<Color> gradient;
   final IconData icon;
@@ -1489,7 +2590,8 @@ class _DestinationDetailSheet extends StatefulWidget {
   });
 
   @override
-  State<_DestinationDetailSheet> createState() => _DestinationDetailSheetState();
+  State<_DestinationDetailSheet> createState() =>
+      _DestinationDetailSheetState();
 }
 
 class _DestinationDetailSheetState extends State<_DestinationDetailSheet> {
@@ -1517,8 +2619,12 @@ class _DestinationDetailSheetState extends State<_DestinationDetailSheet> {
               const SizedBox(height: 12),
               Center(
                 child: Container(
-                  width: 36, height: 4,
-                  decoration: BoxDecoration(color: Colors.grey.shade300, borderRadius: BorderRadius.circular(50)),
+                  width: 36,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: Colors.grey.shade300,
+                    borderRadius: BorderRadius.circular(50),
+                  ),
                 ),
               ),
               const SizedBox(height: 16),
@@ -1532,16 +2638,30 @@ class _DestinationDetailSheetState extends State<_DestinationDetailSheet> {
                     height: 160,
                     width: double.infinity,
                     decoration: BoxDecoration(
-                      gradient: LinearGradient(colors: widget.gradient, begin: Alignment.topLeft, end: Alignment.bottomRight),
+                      gradient: LinearGradient(
+                        colors: widget.gradient,
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                      ),
                     ),
                     child: Stack(
                       children: [
                         Positioned(
                           right: -20,
                           bottom: -20,
-                          child: Icon(widget.icon, size: 130, color: Colors.white.withValues(alpha: 0.16)),
+                          child: Icon(
+                            widget.icon,
+                            size: 130,
+                            color: Colors.white.withValues(alpha: 0.16),
+                          ),
                         ),
-                        Center(child: Icon(widget.icon, size: 48, color: Colors.white.withValues(alpha: 0.92))),
+                        Center(
+                          child: Icon(
+                            widget.icon,
+                            size: 48,
+                            color: Colors.white.withValues(alpha: 0.92),
+                          ),
+                        ),
                       ],
                     ),
                   ),
@@ -1559,29 +2679,63 @@ class _DestinationDetailSheetState extends State<_DestinationDetailSheet> {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Text(dest.name,
-                              style: const TextStyle(color: _P.deepNavy, fontSize: 21, fontWeight: FontWeight.w800, letterSpacing: -0.4)),
+                          Text(
+                            dest.name,
+                            style: const TextStyle(
+                              color: _P.deepNavy,
+                              fontSize: 21,
+                              fontWeight: FontWeight.w800,
+                              letterSpacing: -0.4,
+                            ),
+                          ),
                           const SizedBox(height: 4),
                           Row(
                             children: [
-                              const Icon(Icons.location_on_rounded, color: _P.inkSoft, size: 14),
+                              const Icon(
+                                Icons.location_on_rounded,
+                                color: _P.inkSoft,
+                                size: 14,
+                              ),
                               const SizedBox(width: 4),
-                              Text(dest.location, style: const TextStyle(color: _P.inkSoft, fontSize: 13.5, fontWeight: FontWeight.w500)),
+                              Text(
+                                dest.location,
+                                style: const TextStyle(
+                                  color: _P.inkSoft,
+                                  fontSize: 13.5,
+                                  fontWeight: FontWeight.w500,
+                                ),
+                              ),
                             ],
                           ),
                         ],
                       ),
                     ),
                     Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
-                      decoration: BoxDecoration(color: _P.iceBlue, borderRadius: BorderRadius.circular(50)),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 7,
+                      ),
+                      decoration: BoxDecoration(
+                        color: _P.iceBlue,
+                        borderRadius: BorderRadius.circular(50),
+                      ),
                       child: Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          const Icon(Icons.schedule_rounded, color: _P.blue, size: 14),
+                          const Icon(
+                            Icons.schedule_rounded,
+                            color: _P.blue,
+                            size: 14,
+                          ),
                           const SizedBox(width: 5),
-                          Text('${dest.visitHours}h',
-                              style: const TextStyle(color: _P.navy, fontSize: 13, fontWeight: FontWeight.w800)),
+                          Text(
+                            '${dest.visitHours}h',
+                            style: const TextStyle(
+                              color: _P.navy,
+                              fontSize: 13,
+                              fontWeight: FontWeight.w800,
+                            ),
+                          ),
                         ],
                       ),
                     ),
@@ -1595,27 +2749,54 @@ class _DestinationDetailSheetState extends State<_DestinationDetailSheet> {
                 padding: const EdgeInsets.symmetric(horizontal: 22),
                 child: Row(
                   children: [
-                    Row(
-                      children: List.generate(5, (i) {
-                        final average = getAverageRating(dest.name, widget.rating);
-                        final filled = i < average.floor();
-                        final half = !filled && i < average;
-                        return Icon(
-                          half ? Icons.star_half_rounded : (filled ? Icons.star_rounded : Icons.star_border_rounded),
-                          color: const Color(0xFFFFA726),
-                          size: 17,
-                        );
-                      }),
-                    ),
-                    const SizedBox(width: 8),
-                    Text(getAverageRating(dest.name, widget.rating).toStringAsFixed(1),
-                        style: const TextStyle(color: _P.deepNavy, fontSize: 13.5, fontWeight: FontWeight.w800)),
+                    if (widget.rating case final rating?) ...[
+                      Row(
+                        children: List.generate(5, (i) {
+                          final filled = i < rating.floor();
+                          final half = !filled && i < rating;
+                          return Icon(
+                            half
+                                ? Icons.star_half_rounded
+                                : (filled
+                                      ? Icons.star_rounded
+                                      : Icons.star_border_rounded),
+                            color: const Color(0xFFFFA726),
+                            size: 17,
+                          );
+                        }),
+                      ),
+                      const SizedBox(width: 8),
+                      Text(
+                        rating.toStringAsFixed(1),
+                        style: const TextStyle(
+                          color: _P.deepNavy,
+                          fontSize: 13.5,
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
+                    ] else
+                      const Text(
+                        'Rating unavailable',
+                        style: TextStyle(color: _P.inkSoft, fontSize: 13),
+                      ),
                     const SizedBox(width: 6),
                     Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
-                      decoration: BoxDecoration(color: _P.iceBlue, borderRadius: BorderRadius.circular(50)),
-                      child: Text(dest.category,
-                          style: const TextStyle(color: _P.navy, fontSize: 11.5, fontWeight: FontWeight.w700)),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 9,
+                        vertical: 4,
+                      ),
+                      decoration: BoxDecoration(
+                        color: _P.iceBlue,
+                        borderRadius: BorderRadius.circular(50),
+                      ),
+                      child: Text(
+                        dest.category,
+                        style: const TextStyle(
+                          color: _P.navy,
+                          fontSize: 11.5,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
                     ),
                   ],
                 ),
@@ -1624,7 +2805,7 @@ class _DestinationDetailSheetState extends State<_DestinationDetailSheet> {
               const SizedBox(height: 16),
               Divider(height: 1, color: _P.iceBlue),
               const SizedBox(height: 16),
-              
+
               // Reviews Section
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 22),
@@ -1654,12 +2835,16 @@ class _DestinationDetailSheetState extends State<_DestinationDetailSheet> {
                         onTap: () => setState(() => _tabIndex = i),
                         child: Column(
                           children: [
-                            Text(_tabs[i],
-                                style: TextStyle(
-                                  color: selected ? _P.deepNavy : _P.inkSoft,
-                                  fontSize: 14,
-                                  fontWeight: selected ? FontWeight.w800 : FontWeight.w500,
-                                )),
+                            Text(
+                              _tabs[i],
+                              style: TextStyle(
+                                color: selected ? _P.deepNavy : _P.inkSoft,
+                                fontSize: 14,
+                                fontWeight: selected
+                                    ? FontWeight.w800
+                                    : FontWeight.w500,
+                              ),
+                            ),
                             const SizedBox(height: 6),
                             Container(
                               height: 3,
@@ -1697,22 +2882,30 @@ class _DestinationDetailSheetState extends State<_DestinationDetailSheet> {
                     decoration: BoxDecoration(
                       gradient: widget.isSelected
                           ? null
-                          : const LinearGradient(colors: [_P.blue, _P.deepNavy]),
+                          : const LinearGradient(
+                              colors: [_P.blue, _P.deepNavy],
+                            ),
                       color: widget.isSelected ? _P.iceBlue : null,
                       borderRadius: BorderRadius.circular(50),
-                      border: widget.isSelected ? Border.all(color: _P.blue, width: 1.6) : null,
+                      border: widget.isSelected
+                          ? Border.all(color: _P.blue, width: 1.6)
+                          : null,
                     ),
                     child: Row(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
                         Icon(
-                          widget.isSelected ? Icons.check_circle_rounded : Icons.add_circle_outline_rounded,
+                          widget.isSelected
+                              ? Icons.check_circle_rounded
+                              : Icons.add_circle_outline_rounded,
                           color: widget.isSelected ? _P.blue : Colors.white,
                           size: 20,
                         ),
                         const SizedBox(width: 9),
                         Text(
-                          widget.isSelected ? 'Selected — tap to remove' : 'Select this spot',
+                          widget.isSelected
+                              ? 'Selected — tap to remove'
+                              : 'Select this spot',
                           style: TextStyle(
                             color: widget.isSelected ? _P.blue : Colors.white,
                             fontSize: 15.5,
@@ -1737,37 +2930,62 @@ class _DestinationDetailSheetState extends State<_DestinationDetailSheet> {
       case 1: // Map
         return Container(
           height: 140,
-          decoration: BoxDecoration(color: _P.iceBlue.withValues(alpha: 0.5), borderRadius: BorderRadius.circular(16)),
+          decoration: BoxDecoration(
+            color: _P.iceBlue.withValues(alpha: 0.5),
+            borderRadius: BorderRadius.circular(16),
+          ),
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
               const Icon(Icons.map_rounded, color: _P.blue, size: 28),
               const SizedBox(height: 8),
-              Text('${dest.lat.toStringAsFixed(4)}, ${dest.lng.toStringAsFixed(4)}',
-                  style: const TextStyle(color: _P.inkSoft, fontSize: 12.5, fontWeight: FontWeight.w600)),
+              Text(
+                '${dest.lat.toStringAsFixed(4)}, ${dest.lng.toStringAsFixed(4)}',
+                style: const TextStyle(
+                  color: _P.inkSoft,
+                  fontSize: 12.5,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
               const SizedBox(height: 4),
-              const Text('Full map preview available after optimizing',
-                  style: TextStyle(color: _P.inkSoft, fontSize: 11.5, fontWeight: FontWeight.w500)),
+              const Text(
+                'Full map preview available after optimizing',
+                style: TextStyle(
+                  color: _P.inkSoft,
+                  fontSize: 11.5,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
             ],
           ),
         );
       case 2: // Tips
         return const Text(
           'Bring water and sun protection. Most Samal Island spots are best visited in the morning before the midday heat and weekend crowds.',
-          style: TextStyle(color: _P.inkSoft, fontSize: 13.5, fontWeight: FontWeight.w500, height: 1.5),
+          style: TextStyle(
+            color: _P.inkSoft,
+            fontSize: 13.5,
+            fontWeight: FontWeight.w500,
+            height: 1.5,
+          ),
         );
       default: // Overview
         return Text(
           widget.blurb,
-          style: const TextStyle(color: _P.inkSoft, fontSize: 13.5, fontWeight: FontWeight.w500, height: 1.5),
+          style: const TextStyle(
+            color: _P.inkSoft,
+            fontSize: 13.5,
+            fontWeight: FontWeight.w500,
+            height: 1.5,
+          ),
         );
     }
   }
 
   // ── Rating Summary (Google Play Store Style) ──
-  Widget _buildRatingSummary(String placeName, double defaultRating) {
+  Widget _buildRatingSummary(String placeName, double? defaultRating) {
     final reviews = globalReviews[placeName] ?? [];
-    final avgRating = getAverageRating(placeName, defaultRating);
+    final avgRating = defaultRating;
     final totalReviews = reviews.length;
 
     final Map<int, int> starCounts = {5: 0, 4: 0, 3: 0, 2: 0, 1: 0};
@@ -1805,12 +3023,36 @@ class _DestinationDetailSheetState extends State<_DestinationDetailSheet> {
           ],
         ),
         const SizedBox(height: 16),
-        if (reviews.isEmpty)
+        if (reviews.isEmpty && avgRating == null)
+          const Padding(
+            padding: EdgeInsets.symmetric(vertical: 20),
+            child: Center(
+              child: Text(
+                'Rating unavailable. No reviews yet; be the first to review!',
+                style: TextStyle(
+                  color: _P.inkSoft,
+                  fontStyle: FontStyle.italic,
+                ),
+              ),
+            ),
+          )
+        else if (reviews.isEmpty)
           const Padding(
             padding: EdgeInsets.symmetric(vertical: 20),
             child: Center(
               child: Text(
                 'No reviews yet. Be the first to review!',
+                style: TextStyle(color: _P.inkSoft, fontStyle: FontStyle.italic),
+              ),
+            ),
+          )
+        else if (avgRating == null)
+          const Padding(
+            padding: EdgeInsets.symmetric(vertical: 20),
+            child: Center(
+              child: Text(
+                'Destination rating unavailable. Review entries do not provide a verified public average.',
+                textAlign: TextAlign.center,
                 style: TextStyle(color: _P.inkSoft, fontStyle: FontStyle.italic),
               ),
             ),
@@ -1838,8 +3080,8 @@ class _DestinationDetailSheetState extends State<_DestinationDetailSheet> {
                         filled >= 0.75
                             ? Icons.star_rounded
                             : filled >= 0.25
-                                ? Icons.star_half_rounded
-                                : Icons.star_border_rounded,
+                            ? Icons.star_half_rounded
+                            : Icons.star_border_rounded,
                         color: _P.blue,
                         size: 16,
                       );
@@ -1848,10 +3090,7 @@ class _DestinationDetailSheetState extends State<_DestinationDetailSheet> {
                   const SizedBox(height: 2),
                   Text(
                     '$totalReviews reviews',
-                    style: TextStyle(
-                      color: Colors.grey.shade600,
-                      fontSize: 11,
-                    ),
+                    style: TextStyle(color: Colors.grey.shade600, fontSize: 11),
                   ),
                 ],
               ),
@@ -1931,17 +3170,15 @@ class _DestinationDetailSheetState extends State<_DestinationDetailSheet> {
               const SizedBox(height: 4),
               Text(
                 'Tell others what you think',
-                style: TextStyle(
-                  color: Colors.grey.shade500,
-                  fontSize: 12,
-                ),
+                style: TextStyle(color: Colors.grey.shade500, fontSize: 12),
               ),
               const SizedBox(height: 10),
               Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: List.generate(5, (i) {
                   return GestureDetector(
-                    onTap: () => _showWriteReviewSheet(placeName, initialRating: i + 1),
+                    onTap: () =>
+                        _showWriteReviewSheet(placeName, initialRating: i + 1),
                     child: Padding(
                       padding: const EdgeInsets.symmetric(horizontal: 6),
                       child: Icon(
@@ -1978,7 +3215,9 @@ class _DestinationDetailSheetState extends State<_DestinationDetailSheet> {
               String dateStr = '${r.date.day}/${r.date.month}/${r.date.year}';
               if (diff.inDays == 0) dateStr = 'Today';
               if (diff.inDays == 1) dateStr = 'Yesterday';
-              if (diff.inDays > 1 && diff.inDays < 30) dateStr = '${diff.inDays} days ago';
+              if (diff.inDays > 1 && diff.inDays < 30) {
+                dateStr = '${diff.inDays} days ago';
+              }
 
               return Container(
                 padding: const EdgeInsets.all(12),

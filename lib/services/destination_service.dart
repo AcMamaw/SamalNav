@@ -23,9 +23,13 @@ class DestinationService {
 
   /// Returns all active destinations from Supabase, falling back to
   /// the hardcoded list if the network request fails.
-  static Future<List<DestinationRecord>> getAll({bool forceRefresh = false}) async {
+  static Future<List<DestinationRecord>> getAll({
+    bool forceRefresh = false,
+    SupabaseClient? client,
+  }) async {
     // Return cache if fresh
-    if (!forceRefresh &&
+    if (client == null &&
+        !forceRefresh &&
         _cache != null &&
         _cacheTime != null &&
         DateTime.now().difference(_cacheTime!) < _cacheDuration) {
@@ -33,19 +37,26 @@ class DestinationService {
     }
 
     try {
-      final data = await _client
+      final data = await (client ?? _client)
           .from('destinations')
           .select()
           .order('name');
 
       final records = (data as List)
-          .map((row) => DestinationRecord.fromJson(row as Map<String, dynamic>))
+          .map(
+            (row) => DestinationRecord.fromJson(
+              row as Map<String, dynamic>,
+              source: DestinationRecordSource.database,
+            ),
+          )
           .where((d) => d.isActive)
           .toList();
 
       if (records.isNotEmpty) {
-        _cache = records;
-        _cacheTime = DateTime.now();
+        if (client == null) {
+          _cache = records;
+          _cacheTime = DateTime.now();
+        }
         return records;
       }
     } catch (e) {
@@ -54,8 +65,10 @@ class DestinationService {
 
     // Fallback to hardcoded data
     final fallback = _fallbackDestinations;
-    _cache = fallback;
-    _cacheTime = DateTime.now();
+    if (client == null) {
+      _cache = fallback;
+      _cacheTime = DateTime.now();
+    }
     return fallback;
   }
 
@@ -180,6 +193,7 @@ out center;
   static final List<DestinationRecord> _fallbackDestinations = [
     // ── Beaches ────────────────────────────────────────────────────
     const DestinationRecord(
+      source: DestinationRecordSource.fallback,
       id: 'fb-001', name: 'Kaputian Beach', location: 'Kaputian, Samal',
       lat: 6.9736, lng: 125.7265, category: 'Beach', rating: 4.9,
       status: 'active', isVerified: true,
@@ -188,6 +202,7 @@ out center;
       imageUrl: 'https://images.unsplash.com/photo-1507525428034-b723cf961d3e?auto=format&fit=crop&w=500&q=80',
     ),
     const DestinationRecord(
+      source: DestinationRecordSource.fallback,
       id: 'fb-002', name: 'Isla Reta Beach', location: 'Talikud Island, Samal',
       lat: 6.9385, lng: 125.7115, category: 'Beach', rating: 4.8,
       status: 'active', isVerified: true,
@@ -196,6 +211,7 @@ out center;
       imageUrl: 'https://images.unsplash.com/photo-1544735716-392fe2489ffa?auto=format&fit=crop&w=500&q=80',
     ),
     const DestinationRecord(
+      source: DestinationRecordSource.fallback,
       id: 'fb-003', name: 'Canibad Beach', location: 'Babak District, Samal',
       lat: 7.1353, lng: 125.7925, category: 'Beach', rating: 4.6,
       status: 'active', isVerified: true,
@@ -204,6 +220,7 @@ out center;
       imageUrl: 'https://images.unsplash.com/photo-1439066615861-d1af74d74000?auto=format&fit=crop&w=500&q=80',
     ),
     const DestinationRecord(
+      source: DestinationRecordSource.fallback,
       id: 'fb-004', name: 'Paradise Island', location: 'Peñaplata, Samal',
       lat: 7.1147, lng: 125.6585, category: 'Beach', rating: 4.7,
       status: 'active', isVerified: true,
@@ -212,6 +229,7 @@ out center;
       imageUrl: 'https://images.unsplash.com/photo-1506929562872-bb421503ef21?auto=format&fit=crop&w=500&q=80',
     ),
     const DestinationRecord(
+      source: DestinationRecordSource.fallback,
       id: 'fb-005', name: 'Vanishing Island', location: 'Babak District, Samal',
       lat: 7.1290, lng: 125.6480, category: 'Beach', rating: 4.7,
       status: 'active', isVerified: true,
@@ -220,6 +238,7 @@ out center;
       imageUrl: 'https://images.unsplash.com/photo-1473116763269-255448993f66?auto=format&fit=crop&w=500&q=80',
     ),
     const DestinationRecord(
+      source: DestinationRecordSource.fallback,
       id: 'fb-006', name: 'Babu Santa Beach', location: 'Babak District, Samal',
       lat: 7.1050, lng: 125.7780, category: 'Beach', rating: 4.4,
       status: 'active', isVerified: true,
@@ -229,6 +248,7 @@ out center;
     ),
     // ── Resorts ────────────────────────────────────────────────────
     const DestinationRecord(
+      source: DestinationRecordSource.fallback,
       id: 'fb-010', name: 'Pearl Farm Resort', location: 'Kaputian, Samal',
       lat: 7.0080, lng: 125.7170, category: 'Resort', rating: 4.9,
       status: 'active', isVerified: true,
@@ -237,6 +257,7 @@ out center;
       imageUrl: 'https://images.unsplash.com/photo-1544735716-392fe2489ffa?auto=format&fit=crop&w=500&q=80',
     ),
     const DestinationRecord(
+      source: DestinationRecordSource.fallback,
       id: 'fb-011', name: 'Maxima Aquafun', location: 'Peñaplata, Samal',
       lat: 7.0425, lng: 125.7035, category: 'Resort', rating: 4.6,
       status: 'active', isVerified: true,
@@ -245,6 +266,7 @@ out center;
       imageUrl: 'https://images.unsplash.com/photo-1538964173425-93884d739596?auto=format&fit=crop&w=500&q=80',
     ),
     const DestinationRecord(
+      source: DestinationRecordSource.fallback,
       id: 'fb-012', name: 'Secdea Beach Resort', location: 'Babak, Samal',
       lat: 7.1690, lng: 125.7580, category: 'Resort', rating: 4.8,
       status: 'active', isVerified: true,
@@ -253,6 +275,7 @@ out center;
       imageUrl: 'https://images.unsplash.com/photo-1506929562872-bb421503ef21?auto=format&fit=crop&w=500&q=80',
     ),
     const DestinationRecord(
+      source: DestinationRecordSource.fallback,
       id: 'fb-013', name: 'Bali-Bali View Deck', location: 'Peñaplata, Samal',
       lat: 7.0125, lng: 125.7130, category: 'Resort', rating: 4.5,
       status: 'active', isVerified: true,
@@ -261,6 +284,7 @@ out center;
       imageUrl: 'https://images.unsplash.com/photo-1501785888041-af3ef285b470?auto=format&fit=crop&w=500&q=80',
     ),
     const DestinationRecord(
+      source: DestinationRecordSource.fallback,
       id: 'fb-014', name: 'Cavanico Bella Beach Resort', location: 'Babak, Samal',
       lat: 7.1290, lng: 125.7830, category: 'Resort', rating: 4.5,
       status: 'active', isVerified: true,
@@ -269,6 +293,7 @@ out center;
       imageUrl: 'https://images.unsplash.com/photo-1566073771259-6a8506099945?auto=format&fit=crop&w=500&q=80',
     ),
     const DestinationRecord(
+      source: DestinationRecordSource.fallback,
       id: 'fb-015', name: 'Club Samal Resort', location: 'Peñaplata, Samal',
       lat: 7.0985, lng: 125.6720, category: 'Resort', rating: 4.3,
       status: 'active', isVerified: true,
@@ -277,6 +302,7 @@ out center;
       imageUrl: 'https://images.unsplash.com/photo-1544735716-392fe2489ffa?auto=format&fit=crop&w=500&q=80',
     ),
     const DestinationRecord(
+      source: DestinationRecordSource.fallback,
       id: 'fb-016', name: "Chema's by the Sea", location: 'Peñaplata, Samal',
       lat: 7.0875, lng: 125.6790, category: 'Resort', rating: 4.4,
       status: 'active', isVerified: true,
@@ -285,6 +311,7 @@ out center;
       imageUrl: 'https://images.unsplash.com/photo-1506929562872-bb421503ef21?auto=format&fit=crop&w=500&q=80',
     ),
     const DestinationRecord(
+      source: DestinationRecordSource.fallback,
       id: 'fb-017', name: 'Hof Gorei Beach Resort', location: 'Babak, Samal',
       lat: 7.1520, lng: 125.6680, category: 'Resort', rating: 4.6,
       status: 'active', isVerified: true,
@@ -293,6 +320,7 @@ out center;
       imageUrl: 'https://images.unsplash.com/photo-1566073771259-6a8506099945?auto=format&fit=crop&w=500&q=80',
     ),
     const DestinationRecord(
+      source: DestinationRecordSource.fallback,
       id: 'fb-018', name: 'Punta del Sol Beach Resort', location: 'Babak, Samal',
       lat: 7.0810, lng: 125.6750, category: 'Resort', rating: 4.3,
       status: 'active', isVerified: true,
@@ -301,6 +329,7 @@ out center;
       imageUrl: 'https://images.unsplash.com/photo-1544735716-392fe2489ffa?auto=format&fit=crop&w=500&q=80',
     ),
     const DestinationRecord(
+      source: DestinationRecordSource.fallback,
       id: 'fb-019', name: 'Costa Marina Beach Resort', location: 'Babak, Samal',
       lat: 7.1160, lng: 125.6590, category: 'Resort', rating: 4.4,
       status: 'active', isVerified: true,
@@ -309,6 +338,7 @@ out center;
       imageUrl: 'https://images.unsplash.com/photo-1506929562872-bb421503ef21?auto=format&fit=crop&w=500&q=80',
     ),
     const DestinationRecord(
+      source: DestinationRecordSource.fallback,
       id: 'fb-020', name: 'Camp Holiday Resort', location: 'Babak, Samal',
       lat: 7.1275, lng: 125.6655, category: 'Resort', rating: 4.2,
       status: 'active', isVerified: true,
@@ -317,6 +347,7 @@ out center;
       imageUrl: 'https://images.unsplash.com/photo-1538964173425-93884d739596?auto=format&fit=crop&w=500&q=80',
     ),
     const DestinationRecord(
+      source: DestinationRecordSource.fallback,
       id: 'fb-021', name: 'Blue Waters Samal Resort', location: 'Peñaplata, Samal',
       lat: 7.0780, lng: 125.6830, category: 'Resort', rating: 4.3,
       status: 'active', isVerified: true,
@@ -325,6 +356,7 @@ out center;
       imageUrl: 'https://images.unsplash.com/photo-1544735716-392fe2489ffa?auto=format&fit=crop&w=500&q=80',
     ),
     const DestinationRecord(
+      source: DestinationRecordSource.fallback,
       id: 'fb-022', name: 'Precious Garden of Samal', location: 'Peñaplata, Samal',
       lat: 7.1350, lng: 125.6780, category: 'Resort', rating: 4.1,
       status: 'active', isVerified: true,
@@ -334,6 +366,7 @@ out center;
     ),
     // ── Falls ──────────────────────────────────────────────────────
     const DestinationRecord(
+      source: DestinationRecordSource.fallback,
       id: 'fb-030', name: 'Hagimit Falls', location: 'Peñaplata, Samal',
       lat: 7.0620, lng: 125.7085, category: 'Falls', rating: 4.7,
       status: 'active', isVerified: true,
@@ -342,6 +375,7 @@ out center;
       imageUrl: 'https://images.unsplash.com/photo-1470071459604-3b5ec3a7fe05?auto=format&fit=crop&w=500&q=80',
     ),
     const DestinationRecord(
+      source: DestinationRecordSource.fallback,
       id: 'fb-031', name: 'Tagbaobo Falls', location: 'Tagbaobo, Samal',
       lat: 7.0054, lng: 125.7750, category: 'Falls', rating: 4.5,
       status: 'active', isVerified: true,
@@ -351,6 +385,7 @@ out center;
     ),
     // ── Mountain ───────────────────────────────────────────────────
     const DestinationRecord(
+      source: DestinationRecordSource.fallback,
       id: 'fb-040', name: 'Mt. Puting Bato', location: 'Bali-Bali, Samal',
       lat: 7.0656, lng: 125.7580, category: 'Mountain', rating: 4.6,
       status: 'active', isVerified: true,
@@ -360,6 +395,7 @@ out center;
     ),
     // ── Islands ────────────────────────────────────────────────────
     const DestinationRecord(
+      source: DestinationRecordSource.fallback,
       id: 'fb-050', name: 'Talikud Island', location: 'Kaputian District, Samal',
       lat: 6.9250, lng: 125.6950, category: 'Island', rating: 4.8,
       status: 'active', isVerified: true,
@@ -368,6 +404,7 @@ out center;
       imageUrl: 'https://images.unsplash.com/photo-1505118380757-91f5f5632de0?auto=format&fit=crop&w=500&q=80',
     ),
     const DestinationRecord(
+      source: DestinationRecordSource.fallback,
       id: 'fb-051', name: 'Coral Garden', location: 'Talikud Island, Samal',
       lat: 6.9150, lng: 125.6850, category: 'Island', rating: 4.7,
       status: 'active', isVerified: true,
@@ -376,6 +413,7 @@ out center;
       imageUrl: 'https://images.unsplash.com/photo-1546026423-cc4642628d2b?auto=format&fit=crop&w=500&q=80',
     ),
     const DestinationRecord(
+      source: DestinationRecordSource.fallback,
       id: 'fb-052', name: 'Malipano Island', location: 'Kaputian, Samal',
       lat: 7.0020, lng: 125.7150, category: 'Island', rating: 4.6,
       status: 'active', isVerified: true,
@@ -385,6 +423,7 @@ out center;
     ),
     // ── Historical / Caves ─────────────────────────────────────────
     const DestinationRecord(
+      source: DestinationRecordSource.fallback,
       id: 'fb-060', name: 'Monfort Bat Sanctuary', location: 'Babak, Samal',
       lat: 7.1650, lng: 125.6880, category: 'Historical', rating: 4.5,
       status: 'active', isVerified: true,
@@ -393,6 +432,7 @@ out center;
       imageUrl: 'https://images.unsplash.com/photo-1507163546605-a84d8ff1a3bb?auto=format&fit=crop&w=500&q=80',
     ),
     const DestinationRecord(
+      source: DestinationRecordSource.fallback,
       id: 'fb-061', name: 'Ligid Island Cave', location: 'Peñaplata, Samal',
       lat: 7.1850, lng: 125.7550, category: 'Historical', rating: 4.4,
       status: 'active', isVerified: true,
@@ -402,6 +442,7 @@ out center;
     ),
     // ── Hotels ─────────────────────────────────────────────────────
     const DestinationRecord(
+      source: DestinationRecordSource.fallback,
       id: 'fb-070', name: 'Samal Island Huts', location: 'Peñaplata, Samal',
       lat: 7.0850, lng: 125.6890, category: 'Hotel', rating: 4.2,
       status: 'active', isVerified: true,
@@ -410,6 +451,7 @@ out center;
       imageUrl: 'https://images.unsplash.com/photo-1566073771259-6a8506099945?auto=format&fit=crop&w=500&q=80',
     ),
     const DestinationRecord(
+      source: DestinationRecordSource.fallback,
       id: 'fb-071', name: 'Leticia by the Sea', location: 'Talikud Island, Samal',
       lat: 6.9410, lng: 125.7180, category: 'Hotel', rating: 4.3,
       status: 'active', isVerified: true,
@@ -419,6 +461,7 @@ out center;
     ),
     // ── Forest / Nature ────────────────────────────────────────────
     const DestinationRecord(
+      source: DestinationRecordSource.fallback,
       id: 'fb-080', name: 'Samal Zipline', location: 'Peñaplata, Samal',
       lat: 7.0450, lng: 125.7050, category: 'Forest', rating: 4.4,
       status: 'active', isVerified: true,

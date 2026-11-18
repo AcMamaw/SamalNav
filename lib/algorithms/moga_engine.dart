@@ -19,6 +19,22 @@ class Destination {
   });
 }
 
+/// A tourist-supplied route start coordinate. This is context, not a stop.
+class MogaStartingPoint {
+  final double latitude;
+  final double longitude;
+
+  const MogaStartingPoint({required this.latitude, required this.longitude});
+
+  bool get isValid =>
+      latitude.isFinite &&
+      latitude >= -90 &&
+      latitude <= 90 &&
+      longitude.isFinite &&
+      longitude >= -180 &&
+      longitude <= 180;
+}
+
 /// A single route solution (chromosome) in the MOGA population.
 class RouteChromosome {
   final List<int> order;
@@ -159,6 +175,7 @@ class MogaEngine {
   final double crossoverRate;
   final double mutationRate;
   final int? randomSeed;
+  final MogaStartingPoint? startingPoint;
   late final Random _rng = randomSeed == null ? Random() : Random(randomSeed);
 
   MogaEngine({
@@ -170,9 +187,13 @@ class MogaEngine {
     this.crossoverRate = 0.8,
     this.mutationRate = 0.2,
     this.randomSeed,
+    this.startingPoint,
   }) {
     _validateParameters();
     _validateDestinations(destinations);
+    if (startingPoint != null && !startingPoint!.isValid) {
+      throw ArgumentError('Starting point has invalid coordinates.');
+    }
   }
 
   void _validateParameters() {
@@ -229,6 +250,18 @@ class MogaEngine {
 
   double _toRad(double degrees) => degrees * pi / 180;
 
+  double _distanceFromStartingPoint(int destinationIndex) {
+    final start = startingPoint!;
+    final destination = destinations[destinationIndex];
+    return _haversine(
+          start.latitude,
+          start.longitude,
+          destination.lat,
+          destination.lng,
+        ) *
+        1.3;
+  }
+
   late final List<List<double>> _distMatrix = _buildDistMatrix();
 
   List<List<double>> _buildDistMatrix() {
@@ -249,16 +282,23 @@ class MogaEngine {
     return matrix;
   }
 
-  List<double> _fitnessForOrder(List<int> order) {
+  List<double> _fitnessForOrder(
+    List<int> order, {
+    required bool includeStartingPoint,
+  }) {
     if (order.isEmpty) return [0, 0, 0];
+    final includesStart = includeStartingPoint && startingPoint != null;
     var totalDistance = 0.0;
     var timeUsed = 0.0;
     var attractionsFit = 0;
     final stopTimes = <double>[];
     for (var i = 0; i < order.length; i++) {
-      final travelTime = i == 0 ? 0.0 : _distMatrix[order[i - 1]][order[i]] / avgSpeedKmh;
+      final travelDistance = i == 0
+          ? (includesStart ? _distanceFromStartingPoint(order[i]) : 0.0)
+          : _distMatrix[order[i - 1]][order[i]];
+      final travelTime = travelDistance / avgSpeedKmh;
       final stopTime = travelTime + destinations[order[i]].visitHours;
-      if (i > 0) totalDistance += _distMatrix[order[i - 1]][order[i]];
+      totalDistance += travelDistance;
       timeUsed += stopTime;
       if (timeUsed <= tourHours) attractionsFit++;
       stopTimes.add(stopTime);
@@ -272,8 +312,14 @@ class MogaEngine {
     return [totalDistance, -attractionsFit.toDouble(), variance];
   }
 
-  void _evaluate(RouteChromosome chromosome) {
-    chromosome.fitness = _fitnessForOrder(chromosome.order);
+  void _evaluate(
+    RouteChromosome chromosome, {
+    required bool includeStartingPoint,
+  }) {
+    chromosome.fitness = _fitnessForOrder(
+      chromosome.order,
+      includeStartingPoint: includeStartingPoint,
+    );
   }
 
   bool _dominates(RouteChromosome a, RouteChromosome b) {
@@ -390,17 +436,20 @@ class MogaEngine {
     chromosome.order[j] = temp;
   }
 
-  List<RouteChromosome> _evolve(List<int> assignedIndices) {
+  List<RouteChromosome> _evolve(
+    List<int> assignedIndices, {
+    required bool includeStartingPoint,
+  }) {
     _validateOrder(assignedIndices);
     if (assignedIndices.length <= 1) {
       final only = RouteChromosome(List<int>.from(assignedIndices));
-      _evaluate(only);
+      _evaluate(only, includeStartingPoint: includeStartingPoint);
       return [only];
     }
     var population = List.generate(populationSize, (_) {
       final order = List<int>.from(assignedIndices)..shuffle(_rng);
       final chromosome = RouteChromosome(order);
-      _evaluate(chromosome);
+      _evaluate(chromosome, includeStartingPoint: includeStartingPoint);
       return chromosome;
     });
     for (var generation = 0; generation < generations; generation++) {
@@ -413,7 +462,7 @@ class MogaEngine {
         final p2 = _tournament(population);
         final child = _rng.nextDouble() < crossoverRate ? _crossover(p1, p2) : p1.copy();
         if (_rng.nextDouble() < mutationRate) _mutate(child);
-        _evaluate(child);
+        _evaluate(child, includeStartingPoint: includeStartingPoint);
         offspring.add(child);
       }
       final combined = [...population, ...offspring];
@@ -448,9 +497,15 @@ class MogaEngine {
   /// objective. The full first-front objective vectors are returned as well.
   RouteResult optimizeDayTour() => optimizeAssignedDay(List.generate(destinations.length, (i) => i));
 
-  RouteResult optimizeAssignedDay(List<int> assignedIndices) {
+  RouteResult optimizeAssignedDay(
+    List<int> assignedIndices, {
+    bool includeStartingPoint = true,
+  }) {
     _validateOrder(assignedIndices);
-    final front = _evolve(assignedIndices);
+    final front = _evolve(
+      assignedIndices,
+      includeStartingPoint: includeStartingPoint,
+    );
     RouteChromosome selected = front.first;
     for (final candidate in front.skip(1)) {
       if (candidate.fitness[0] < selected.fitness[0]) selected = candidate;
@@ -463,18 +518,26 @@ class MogaEngine {
                 fitness: List<double>.from(candidate.fitness),
               ))
           .toList(),
+      includeStartingPoint: includeStartingPoint,
     );
   }
 
-  RouteResult _buildResult(List<int> order, List<ParetoCandidate> paretoFront) {
+  RouteResult _buildResult(
+    List<int> order,
+    List<ParetoCandidate> paretoFront, {
+    required bool includeStartingPoint,
+  }) {
     var totalDistance = 0.0;
     var totalTime = 0.0;
     final legDistances = <double>[];
     final legMinutes = <double>[];
+    final includesStart = includeStartingPoint && startingPoint != null;
     for (var i = 0; i < order.length; i++) {
-      final travelHours = i == 0 ? 0.0 : _distMatrix[order[i - 1]][order[i]] / avgSpeedKmh;
-      if (i > 0) {
-        final distance = _distMatrix[order[i - 1]][order[i]];
+      final distance = i == 0
+          ? (includesStart ? _distanceFromStartingPoint(order[i]) : 0.0)
+          : _distMatrix[order[i - 1]][order[i]];
+      final travelHours = distance / avgSpeedKmh;
+      if (i > 0 || includesStart) {
         totalDistance += distance;
         legDistances.add(distance);
         legMinutes.add(travelHours * 60);
@@ -516,8 +579,13 @@ class MogaEngine {
     }
     final days = <DayPlan>[];
     final violations = <DayViolation>[];
+    final firstAssignedDay = assignedDays.indexWhere((day) => day.isNotEmpty);
     for (var i = 0; i < assignedDays.length; i++) {
-      final result = optimizeAssignedDay(assignedDays[i]);
+      final includesStartingPoint = i == firstAssignedDay;
+      final result = optimizeAssignedDay(
+        assignedDays[i],
+        includeStartingPoint: includesStartingPoint,
+      );
       days.add(DayPlan(
         dayNumber: i + 1,
         stopOrder: result.stopOrder,
@@ -530,9 +598,12 @@ class MogaEngine {
       ));
       var elapsed = 0.0;
       for (var stop = 0; stop < result.stopOrder.length; stop++) {
-        if (stop > 0) {
-          elapsed += _distMatrix[result.stopOrder[stop - 1]][result.stopOrder[stop]] / avgSpeedKmh;
-        }
+        final travelDistance = stop == 0
+            ? (includesStartingPoint && startingPoint != null
+                  ? _distanceFromStartingPoint(result.stopOrder[stop])
+                  : 0.0)
+            : _distMatrix[result.stopOrder[stop - 1]][result.stopOrder[stop]];
+        elapsed += travelDistance / avgSpeedKmh;
         elapsed += destinations[result.stopOrder[stop]].visitHours;
         if (elapsed > tourHours + 1e-9) {
           violations.add(DayViolation(
@@ -576,16 +647,21 @@ class MogaEngine {
     var dayTime = 0.0;
     for (var i = 0; i < route.stopOrder.length; i++) {
       final index = route.stopOrder[i];
-      final travel = assignments[day].isEmpty
-          ? 0.0
-          : _distMatrix[assignments[day].last][index] / avgSpeedKmh;
+      final travelDistance = assignments[day].isEmpty
+          ? (day == 0 && startingPoint != null
+                ? _distanceFromStartingPoint(index)
+                : 0.0)
+          : _distMatrix[assignments[day].last][index];
+      final travel = travelDistance / avgSpeedKmh;
       final required = travel + destinations[index].visitHours;
       if (dayTime + required > tourHours && assignments[day].isNotEmpty && day < numberOfDays - 1) {
         day++;
         dayTime = 0;
       }
       final actualTravel = assignments[day].isEmpty
-          ? 0.0
+          ? (day == 0 && startingPoint != null
+                ? _distanceFromStartingPoint(index) / avgSpeedKmh
+                : 0.0)
           : _distMatrix[assignments[day].last][index] / avgSpeedKmh;
       assignments[day].add(index);
       dayTime += actualTravel + destinations[index].visitHours;

@@ -7,7 +7,7 @@ import 'screens/auth_screens/mainlanding.dart';
 import 'screens/auth_screens/login_page.dart';
 import 'screens/auth_screens/register_page.dart';
 import 'screens/auth_screens/management_login_page.dart';
-import 'screens/establishment_owner_screens/establishment_dashboard.dart';
+import 'services/establishment_dashboard.dart';
 import 'screens/admin_screens/administrator_dashboard.dart';
 import 'screens/admin_screens/super_admin_dashboard.dart';
 import 'widgets/main_navigation.dart';
@@ -98,21 +98,33 @@ class SamalNavApp extends StatelessWidget {
           return PageRouteBuilder(
             settings: settings,
             opaque: false,
-            transitionDuration: isTabSwitch ? Duration.zero : const Duration(milliseconds: 500),
+            transitionDuration: isTabSwitch
+                ? Duration.zero
+                : const Duration(milliseconds: 500),
             pageBuilder: (context, animation, secondaryAnimation) => page,
-            transitionsBuilder: (context, animation, secondaryAnimation, child) {
-              if (isTabSwitch) return child;
+            transitionsBuilder:
+                (context, animation, secondaryAnimation, child) {
+                  if (isTabSwitch) return child;
 
-              const begin = Offset(0.0, 1.0);
-              const end = Offset.zero;
-              const curve = Curves.easeOutCubic;
-              var tween = Tween(begin: begin, end: end).chain(CurveTween(curve: curve));
-              return SlideTransition(position: animation.drive(tween), child: child);
-            },
+                  const begin = Offset(0.0, 1.0);
+                  const end = Offset.zero;
+                  const curve = Curves.easeOutCubic;
+                  var tween = Tween(
+                    begin: begin,
+                    end: end,
+                  ).chain(CurveTween(curve: curve));
+                  return SlideTransition(
+                    position: animation.drive(tween),
+                    child: child,
+                  );
+                },
           );
         }
 
-        return MaterialPageRoute(builder: (context) => page, settings: settings);
+        return MaterialPageRoute(
+          builder: (context) => page,
+          settings: settings,
+        );
       },
     );
   }

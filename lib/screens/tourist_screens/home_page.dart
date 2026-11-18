@@ -11,8 +11,10 @@ typedef _P = AppPalette;
 class Place {
   final String name;
   final String location;
-  final double rating;
-  final String category; // Beach, Resort, Falls, Forest, Mountain, Island, Historical, Hotel
+  final double? rating;
+  final bool ratingAvailable;
+  final String
+  category; // Beach, Resort, Falls, Forest, Mountain, Island, Historical, Hotel
   final List<Color> gradient;
   final String description;
   final String price;
@@ -25,6 +27,7 @@ class Place {
     required this.name,
     required this.location,
     required this.rating,
+    this.ratingAvailable = false,
     required this.category,
     required this.gradient,
     required this.description,
@@ -67,7 +70,8 @@ class Place {
     return Place(
       name: rec.name,
       location: rec.location,
-      rating: rec.rating,
+      rating: rec.availableRating,
+      ratingAvailable: rec.availableRating != null,
       category: rec.category,
       gradient: grad,
       description: rec.description != null && rec.description!.isNotEmpty
@@ -95,7 +99,8 @@ List<Place> _allPlaces() => [
         'Crystal-clear waters and powdery white sand surrounded by lush coconut trees.',
     price: 'Price not verified',
     owner: 'Isla Reta Resort Management',
-    imageUrl: 'https://images.unsplash.com/photo-1544735716-392fe2489ffa?auto=format&fit=crop&w=600&q=80',
+    imageUrl:
+        'https://images.unsplash.com/photo-1544735716-392fe2489ffa?auto=format&fit=crop&w=600&q=80',
     galleryUrls: [
       'https://images.unsplash.com/photo-1559494007-9f5847c49d94?auto=format&fit=crop&w=400&q=80',
       'https://images.unsplash.com/photo-1520454974749-611b7248ffdb?auto=format&fit=crop&w=400&q=80',
@@ -113,7 +118,8 @@ List<Place> _allPlaces() => [
         'A long stretch of fine white sand with calm, shallow waters perfect for families.',
     price: 'Price not verified',
     owner: 'Local Government Unit (LGU)',
-    imageUrl: 'https://images.unsplash.com/photo-1507525428034-b723cf961d3e?auto=format&fit=crop&w=600&q=80',
+    imageUrl:
+        'https://images.unsplash.com/photo-1507525428034-b723cf961d3e?auto=format&fit=crop&w=600&q=80',
   ),
   Place(
     name: 'Canibad Beach',
@@ -125,7 +131,8 @@ List<Place> _allPlaces() => [
         'Hidden cove with turquoise water, great for cliff diving and snorkeling.',
     price: 'Price not verified',
     owner: 'Canibad Tourism Coop',
-    imageUrl: 'https://images.unsplash.com/photo-1439066615861-d1af74d74000?auto=format&fit=crop&w=600&q=80',
+    imageUrl:
+        'https://images.unsplash.com/photo-1439066615861-d1af74d74000?auto=format&fit=crop&w=600&q=80',
     galleryUrls: [
       'https://images.unsplash.com/photo-1519046904884-53103b34b206?auto=format&fit=crop&w=400&q=80',
       'https://images.unsplash.com/photo-1468413253725-0d5181091126?auto=format&fit=crop&w=400&q=80',
@@ -142,7 +149,8 @@ List<Place> _allPlaces() => [
         'Resort island with water sports, swimming pools, and beachfront cottages.',
     price: 'Price not verified',
     owner: 'Paradise Island Park & Beach Resort',
-    imageUrl: 'https://images.unsplash.com/photo-1506929562872-bb421503ef21?auto=format&fit=crop&w=600&q=80',
+    imageUrl:
+        'https://images.unsplash.com/photo-1506929562872-bb421503ef21?auto=format&fit=crop&w=600&q=80',
   ),
 
   // ── Forest ──
@@ -156,7 +164,8 @@ List<Place> _allPlaces() => [
         'Multi-tiered waterfall hidden in a lush tropical forest with natural rock pools.',
     price: 'Price not verified',
     owner: 'Samal Ecotourism Board',
-    imageUrl: 'https://images.unsplash.com/photo-1470071459604-3b5ec3a7fe05?auto=format&fit=crop&w=600&q=80',
+    imageUrl:
+        'https://images.unsplash.com/photo-1470071459604-3b5ec3a7fe05?auto=format&fit=crop&w=600&q=80',
   ),
   Place(
     name: 'Maxima Aquafun',
@@ -168,7 +177,8 @@ List<Place> _allPlaces() => [
         'Nature park with zip lines, hanging bridges, and forest trails.',
     price: 'Price not verified',
     owner: 'Maxima Resort Group',
-    imageUrl: 'https://images.unsplash.com/photo-1538964173425-93884d739596?auto=format&fit=crop&w=600&q=80',
+    imageUrl:
+        'https://images.unsplash.com/photo-1538964173425-93884d739596?auto=format&fit=crop&w=600&q=80',
     galleryUrls: [
       'https://images.unsplash.com/photo-1448375240586-882707db888b?auto=format&fit=crop&w=400&q=80',
       'https://images.unsplash.com/photo-1502082553048-f009c37129b9?auto=format&fit=crop&w=400&q=80',
@@ -185,7 +195,8 @@ List<Place> _allPlaces() => [
         'Mysterious cave system inside a dense forest. Bring a guide and flashlight.',
     price: 'Price not verified',
     owner: 'San Antonio Local Guides',
-    imageUrl: 'https://images.unsplash.com/photo-1507163546605-a84d8ff1a3bb?auto=format&fit=crop&w=600&q=80',
+    imageUrl:
+        'https://images.unsplash.com/photo-1507163546605-a84d8ff1a3bb?auto=format&fit=crop&w=600&q=80',
   ),
 
   // ── Mountain ──
@@ -199,7 +210,8 @@ List<Place> _allPlaces() => [
         'A scenic hilltop with panoramic views of the Davao Gulf at sunrise.',
     price: 'Price not verified',
     owner: 'Peñaplata Tourism Council',
-    imageUrl: 'https://images.unsplash.com/photo-1454496522488-7a8e488e8606?auto=format&fit=crop&w=600&q=80',
+    imageUrl:
+        'https://images.unsplash.com/photo-1454496522488-7a8e488e8606?auto=format&fit=crop&w=600&q=80',
   ),
   Place(
     name: 'Bali-Bali View Deck',
@@ -211,7 +223,8 @@ List<Place> _allPlaces() => [
         'Mountain view deck overlooking the sea, perfect for sunset watching.',
     price: 'Price not verified',
     owner: 'Bali-Bali Enterprises',
-    imageUrl: 'https://images.unsplash.com/photo-1501785888041-af3ef285b470?auto=format&fit=crop&w=600&q=80',
+    imageUrl:
+        'https://images.unsplash.com/photo-1501785888041-af3ef285b470?auto=format&fit=crop&w=600&q=80',
   ),
 
   // ── Island ──
@@ -225,7 +238,8 @@ List<Place> _allPlaces() => [
         'Secluded island paradise with pristine coral reefs and untouched beaches.',
     price: 'Price not verified',
     owner: 'Talikud LGU & Maritime',
-    imageUrl: 'https://images.unsplash.com/photo-1505118380757-91f5f5632de0?auto=format&fit=crop&w=600&q=80',
+    imageUrl:
+        'https://images.unsplash.com/photo-1505118380757-91f5f5632de0?auto=format&fit=crop&w=600&q=80',
   ),
   Place(
     name: 'Vanishing Island',
@@ -237,7 +251,8 @@ List<Place> _allPlaces() => [
         'A sandbar that appears only during low tide — a truly magical experience.',
     price: 'Price not verified',
     owner: 'Samal Boat Operators Assoc.',
-    imageUrl: 'https://images.unsplash.com/photo-1473116763269-255448993f66?auto=format&fit=crop&w=600&q=80',
+    imageUrl:
+        'https://images.unsplash.com/photo-1473116763269-255448993f66?auto=format&fit=crop&w=600&q=80',
   ),
   Place(
     name: 'Coral Garden',
@@ -249,7 +264,8 @@ List<Place> _allPlaces() => [
         'Underwater paradise with vibrant coral formations and tropical fish.',
     price: 'Price not verified',
     owner: 'Talikud Marine Sanctuary',
-    imageUrl: 'https://images.unsplash.com/photo-1546026423-cc4642628d2b?auto=format&fit=crop&w=600&q=80',
+    imageUrl:
+        'https://images.unsplash.com/photo-1546026423-cc4642628d2b?auto=format&fit=crop&w=600&q=80',
   ),
 ];
 
@@ -359,7 +375,11 @@ class _HomePageState extends State<HomePage> {
 
   List<Place> get _popularPlaces {
     final sorted = List<Place>.from(_places)
-      ..sort((a, b) => b.rating.compareTo(a.rating));
+      ..sort((a, b) {
+        final aRating = a.ratingAvailable ? a.rating : null;
+        final bRating = b.ratingAvailable ? b.rating : null;
+        return (bRating ?? -1).compareTo(aRating ?? -1);
+      });
     return sorted.take(5).toList();
   }
 
@@ -561,336 +581,356 @@ class _HomePageState extends State<HomePage> {
               const SizedBox(height: 8),
               Expanded(
                 child: SingleChildScrollView(
-                  padding: const EdgeInsets.only(left: 24, right: 24, bottom: 24, top: 8),
+                  padding: const EdgeInsets.only(
+                    left: 24,
+                    right: 24,
+                    bottom: 24,
+                    top: 8,
+                  ),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       // Hero gradient card
-                    Container(
-                      width: double.infinity,
-                      height: 180,
-                      decoration: BoxDecoration(
-                        image: DecorationImage(
-                          image: NetworkImage(place.imageUrl),
-                          fit: BoxFit.cover,
-                          colorFilter: ColorFilter.mode(
-                            Colors.black.withValues(alpha: 0.25),
-                            BlendMode.srcOver,
-                          ),
-                        ),
-                        gradient: LinearGradient(
-                          colors: place.gradient,
-                          begin: Alignment.topLeft,
-                          end: Alignment.bottomRight,
-                        ),
-                        borderRadius: BorderRadius.circular(24),
-                      ),
-                      child: Stack(
-                        children: [
-                          Positioned(
-                            top: -30,
-                            right: -30,
-                            child: Container(
-                              width: 120,
-                              height: 120,
-                              decoration: BoxDecoration(
-                                shape: BoxShape.circle,
-                                color: Colors.white.withValues(alpha: 0.06),
-                              ),
+                      Container(
+                        width: double.infinity,
+                        height: 180,
+                        decoration: BoxDecoration(
+                          image: DecorationImage(
+                            image: NetworkImage(place.imageUrl),
+                            fit: BoxFit.cover,
+                            colorFilter: ColorFilter.mode(
+                              Colors.black.withValues(alpha: 0.25),
+                              BlendMode.srcOver,
                             ),
                           ),
-                          Positioned(
-                            bottom: -20,
-                            left: -20,
-                            child: Container(
-                              width: 80,
-                              height: 80,
-                              decoration: BoxDecoration(
-                                shape: BoxShape.circle,
-                                color: Colors.white.withValues(alpha: 0.04),
+                          gradient: LinearGradient(
+                            colors: place.gradient,
+                            begin: Alignment.topLeft,
+                            end: Alignment.bottomRight,
+                          ),
+                          borderRadius: BorderRadius.circular(24),
+                        ),
+                        child: Stack(
+                          children: [
+                            Positioned(
+                              top: -30,
+                              right: -30,
+                              child: Container(
+                                width: 120,
+                                height: 120,
+                                decoration: BoxDecoration(
+                                  shape: BoxShape.circle,
+                                  color: Colors.white.withValues(alpha: 0.06),
+                                ),
                               ),
                             ),
-                          ),
-                          Positioned(
-                            bottom: 20,
-                            left: 20,
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  place.name,
-                                  style: const TextStyle(
-                                    color: Colors.white,
-                                    fontSize: 22,
-                                    fontWeight: FontWeight.w800,
+                            Positioned(
+                              bottom: -20,
+                              left: -20,
+                              child: Container(
+                                width: 80,
+                                height: 80,
+                                decoration: BoxDecoration(
+                                  shape: BoxShape.circle,
+                                  color: Colors.white.withValues(alpha: 0.04),
+                                ),
+                              ),
+                            ),
+                            Positioned(
+                              bottom: 20,
+                              left: 20,
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    place.name,
+                                    style: const TextStyle(
+                                      color: Colors.white,
+                                      fontSize: 22,
+                                      fontWeight: FontWeight.w800,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 4),
+                                  Row(
+                                    children: [
+                                      const Icon(
+                                        Icons.location_on_rounded,
+                                        color: Colors.white70,
+                                        size: 14,
+                                      ),
+                                      const SizedBox(width: 4),
+                                      Text(
+                                        place.location,
+                                        style: const TextStyle(
+                                          color: Colors.white70,
+                                          fontSize: 13,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ],
+                              ),
+                            ),
+                            Positioned(
+                              top: 16,
+                              right: 16,
+                              child: Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 12,
+                                  vertical: 6,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: Colors.white.withValues(alpha: 0.92),
+                                  borderRadius: BorderRadius.circular(50),
+                                ),
+                                child: place.ratingAvailable && place.rating != null
+                                    ? Row(
+                                        children: [
+                                          const Icon(
+                                            Icons.star_rounded,
+                                            color: Color(0xFFFFA726),
+                                            size: 16,
+                                          ),
+                                          const SizedBox(width: 4),
+                                          Text(
+                                            place.rating!.toStringAsFixed(1),
+                                            style: const TextStyle(
+                                              color: _P.deepNavy,
+                                              fontSize: 13,
+                                              fontWeight: FontWeight.w800,
+                                            ),
+                                          ),
+                                        ],
+                                      )
+                                    : const Text(
+                                        'Rating unavailable',
+                                        style: TextStyle(
+                                          color: _P.deepNavy,
+                                          fontSize: 11,
+                                        ),
+                                      ),
+                              ),
+                            ),
+                            // Heart / Favorite Button inside Header Container
+                            Positioned(
+                              top: 16,
+                              left: 16,
+                              child: GestureDetector(
+                                onTap: () {
+                                  setSheetState(() {
+                                    _toggleFavorite(place);
+                                  });
+                                },
+                                child: AnimatedContainer(
+                                  duration: const Duration(milliseconds: 200),
+                                  padding: const EdgeInsets.all(8),
+                                  decoration: BoxDecoration(
+                                    color: place.isLiked
+                                        ? Colors.white
+                                        : Colors.white.withValues(alpha: 0.85),
+                                    shape: BoxShape.circle,
+                                  ),
+                                  child: Icon(
+                                    place.isLiked
+                                        ? Icons.favorite_rounded
+                                        : Icons.favorite_border_rounded,
+                                    color: place.isLiked
+                                        ? Colors.redAccent
+                                        : Colors.grey,
+                                    size: 18,
                                   ),
                                 ),
-                                const SizedBox(height: 4),
-                                Row(
-                                  children: [
-                                    const Icon(
-                                      Icons.location_on_rounded,
-                                      color: Colors.white70,
-                                      size: 14,
-                                    ),
-                                    const SizedBox(width: 4),
-                                    Text(
-                                      place.location,
-                                      style: const TextStyle(
-                                        color: Colors.white70,
-                                        fontSize: 13,
-                                      ),
-                                    ),
-                                  ],
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: 24),
+                      // Category chip
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 14,
+                          vertical: 7,
+                        ),
+                        decoration: BoxDecoration(
+                          color: _P.iceBlue,
+                          borderRadius: BorderRadius.circular(50),
+                        ),
+                        child: Text(
+                          place.category,
+                          style: const TextStyle(
+                            color: _P.deepNavy,
+                            fontSize: 12,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+                      const Text(
+                        'About this spot',
+                        style: TextStyle(
+                          color: _P.deepNavy,
+                          fontSize: 17,
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        place.description,
+                        style: const TextStyle(
+                          color: _P.inkSoft,
+                          fontSize: 14,
+                          height: 1.5,
+                        ),
+                      ),
+                      const SizedBox(height: 14),
+                      // ── Photo Gallery ──
+                      if (place.galleryUrls.isNotEmpty) ...[
+                        const Text(
+                          'Photos',
+                          style: TextStyle(
+                            color: _P.deepNavy,
+                            fontSize: 15,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                        const SizedBox(height: 10),
+                        SizedBox(
+                          height: 100,
+                          child: ListView.separated(
+                            scrollDirection: Axis.horizontal,
+                            itemCount: place.galleryUrls.length,
+                            separatorBuilder: (_, _) =>
+                                const SizedBox(width: 10),
+                            itemBuilder: (ctx, i) => ClipRRect(
+                              borderRadius: BorderRadius.circular(12),
+                              child: Image.network(
+                                place.galleryUrls[i],
+                                width: 140,
+                                height: 100,
+                                fit: BoxFit.cover,
+                                errorBuilder: (_, _, _) => Container(
+                                  width: 140,
+                                  height: 100,
+                                  color: _P.iceBlue,
+                                  child: const Icon(
+                                    Icons.image_rounded,
+                                    color: _P.inkSoft,
+                                  ),
                                 ),
-                              ],
+                              ),
                             ),
                           ),
-                          Positioned(
-                            top: 16,
-                            right: 16,
+                        ),
+                        const SizedBox(height: 14),
+                      ],
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 14,
+                          vertical: 10,
+                        ),
+                        decoration: BoxDecoration(
+                          color: _P.iceBlue,
+                          borderRadius: BorderRadius.circular(14),
+                        ),
+                        child: Row(
+                          children: [
+                            const Icon(
+                              Icons.storefront_rounded,
+                              color: _P.blue,
+                              size: 20,
+                            ),
+                            const SizedBox(width: 10),
+                            Expanded(
+                              child: Text(
+                                'Owner: ${place.owner}',
+                                style: const TextStyle(
+                                  color: _P.deepNavy,
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.w700,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: 20),
+                      // Price + Book row
+                      Row(
+                        children: [
+                          Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              const Text(
+                                'Price',
+                                style: TextStyle(
+                                  color: _P.inkSoft,
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                              const SizedBox(height: 4),
+                              Text(
+                                place.price,
+                                style: const TextStyle(
+                                  color: _P.deepNavy,
+                                  fontSize: 18,
+                                  fontWeight: FontWeight.w800,
+                                ),
+                              ),
+                            ],
+                          ),
+                          const Spacer(),
+                          GestureDetector(
+                            onTap: () {
+                              Navigator.pop(context);
+                              Navigator.of(context).pushReplacementNamed(
+                                '/plan',
+                                arguments: {'destination': place.name},
+                              );
+                            },
                             child: Container(
                               padding: const EdgeInsets.symmetric(
-                                horizontal: 12,
-                                vertical: 6,
+                                horizontal: 28,
+                                vertical: 14,
                               ),
                               decoration: BoxDecoration(
-                                color: Colors.white.withValues(alpha: 0.92),
+                                color: _P.blue,
                                 borderRadius: BorderRadius.circular(50),
                               ),
-                              child: Row(
+                              child: const Row(
+                                mainAxisSize: MainAxisSize.min,
                                 children: [
-                                  const Icon(
-                                    Icons.star_rounded,
-                                    color: Color(0xFFFFA726),
-                                    size: 16,
+                                  Icon(
+                                    Icons.route_rounded,
+                                    color: Colors.white,
+                                    size: 18,
                                   ),
-                                  const SizedBox(width: 4),
+                                  SizedBox(width: 8),
                                   Text(
-                                    getAverageRating(
-                                      place.name,
-                                      place.rating,
-                                    ).toStringAsFixed(1),
-                                    style: const TextStyle(
-                                      color: _P.deepNavy,
-                                      fontSize: 13,
-                                      fontWeight: FontWeight.w800,
+                                    'Add to Plan',
+                                    style: TextStyle(
+                                      color: Colors.white,
+                                      fontSize: 15,
+                                      fontWeight: FontWeight.w700,
                                     ),
                                   ),
                                 ],
                               ),
                             ),
                           ),
-                          // Heart / Favorite Button inside Header Container
-                          Positioned(
-                            top: 16,
-                            left: 16,
-                            child: GestureDetector(
-                              onTap: () {
-                                setSheetState(() {
-                                  _toggleFavorite(place);
-                                });
-                              },
-                              child: AnimatedContainer(
-                                duration: const Duration(milliseconds: 200),
-                                padding: const EdgeInsets.all(8),
-                                decoration: BoxDecoration(
-                                  color: place.isLiked
-                                      ? Colors.white
-                                      : Colors.white.withValues(alpha: 0.85),
-                                  shape: BoxShape.circle,
-                                ),
-                                child: Icon(
-                                  place.isLiked
-                                      ? Icons.favorite_rounded
-                                      : Icons.favorite_border_rounded,
-                                  color: place.isLiked ? Colors.redAccent : Colors.grey,
-                                  size: 18,
-                                ),
-                              ),
-                            ),
-                          ),
                         ],
                       ),
-                    ),
-                  const SizedBox(height: 24),
-                  // Category chip
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 14,
-                      vertical: 7,
-                    ),
-                    decoration: BoxDecoration(
-                      color: _P.iceBlue,
-                      borderRadius: BorderRadius.circular(50),
-                    ),
-                    child: Text(
-                      place.category,
-                      style: const TextStyle(
-                        color: _P.deepNavy,
-                        fontSize: 12,
-                        fontWeight: FontWeight.w700,
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 16),
-                  const Text(
-                    'About this spot',
-                    style: TextStyle(
-                      color: _P.deepNavy,
-                      fontSize: 17,
-                      fontWeight: FontWeight.w800,
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    place.description,
-                    style: const TextStyle(
-                      color: _P.inkSoft,
-                      fontSize: 14,
-                      height: 1.5,
-                    ),
-                  ),
-                  const SizedBox(height: 14),
-                  // ── Photo Gallery ──
-                  if (place.galleryUrls.isNotEmpty) ...[
-                    const Text(
-                      'Photos',
-                      style: TextStyle(
-                        color: _P.deepNavy,
-                        fontSize: 15,
-                        fontWeight: FontWeight.w700,
-                      ),
-                    ),
-                    const SizedBox(height: 10),
-                    SizedBox(
-                      height: 100,
-                      child: ListView.separated(
-                        scrollDirection: Axis.horizontal,
-                        itemCount: place.galleryUrls.length,
-                        separatorBuilder: (_, _) => const SizedBox(width: 10),
-                        itemBuilder: (ctx, i) => ClipRRect(
-                          borderRadius: BorderRadius.circular(12),
-                          child: Image.network(
-                            place.galleryUrls[i],
-                            width: 140,
-                            height: 100,
-                            fit: BoxFit.cover,
-                            errorBuilder: (_, _, _) => Container(
-                              width: 140,
-                              height: 100,
-                              color: _P.iceBlue,
-                              child: const Icon(Icons.image_rounded, color: _P.inkSoft),
-                            ),
-                          ),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 14),
-                  ],
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 14,
-                      vertical: 10,
-                    ),
-                    decoration: BoxDecoration(
-                      color: _P.iceBlue,
-                      borderRadius: BorderRadius.circular(14),
-                    ),
-                    child: Row(
-                      children: [
-                        const Icon(
-                          Icons.storefront_rounded,
-                          color: _P.blue,
-                          size: 20,
-                        ),
-                        const SizedBox(width: 10),
-                        Expanded(
-                          child: Text(
-                            'Owner: ${place.owner}',
-                            style: const TextStyle(
-                              color: _P.deepNavy,
-                              fontSize: 13,
-                              fontWeight: FontWeight.w700,
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(height: 20),
-                  // Price + Book row
-                  Row(
-                    children: [
-                      Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          const Text(
-                            'Price',
-                            style: TextStyle(
-                              color: _P.inkSoft,
-                              fontSize: 12,
-                              fontWeight: FontWeight.w600,
-                            ),
-                          ),
-                          const SizedBox(height: 4),
-                          Text(
-                            place.price,
-                            style: const TextStyle(
-                              color: _P.deepNavy,
-                              fontSize: 18,
-                              fontWeight: FontWeight.w800,
-                            ),
-                          ),
-                        ],
-                      ),
-                      const Spacer(),
-                      GestureDetector(
-                        onTap: () {
-                          Navigator.pop(context);
-                          Navigator.of(context).pushReplacementNamed(
-                            '/plan',
-                            arguments: {'destination': place.name},
-                          );
-                        },
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 28,
-                            vertical: 14,
-                          ),
-                          decoration: BoxDecoration(
-                            color: _P.blue,
-                            borderRadius: BorderRadius.circular(50),
-                          ),
-                          child: const Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Icon(Icons.route_rounded, color: Colors.white, size: 18),
-                              SizedBox(width: 8),
-                              Text(
-                                'Add to Plan',
-                                style: TextStyle(
-                                  color: Colors.white,
-                                  fontSize: 15,
-                                  fontWeight: FontWeight.w700,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 28),
-                  // ── Ratings and Reviews Section ──
-                  _buildRatingSummary(place.name, place.rating),
-                  const SizedBox(height: 20),
-                  // ── Rate This Spot ──
-                  _buildRateThisSpot(place.name),
-                  const SizedBox(height: 20),
-                  // ── Reviews List ──
-                  _buildReviewsSection(place.name),
-                  const SizedBox(height: 16),
+                      const SizedBox(height: 28),
+                      // ── Ratings and Reviews Section ──
+                      _buildRatingSummary(place.name, place.rating),
+                      const SizedBox(height: 20),
+                      // ── Rate This Spot ──
+                      _buildRateThisSpot(place.name),
+                      const SizedBox(height: 20),
+                      // ── Reviews List ──
+                      _buildReviewsSection(place.name),
+                      const SizedBox(height: 16),
                     ],
                   ),
                 ),
@@ -1422,150 +1462,152 @@ class _HomePageState extends State<HomePage> {
     return GestureDetector(
       onTap: () => _showPlaceDetail(place),
       child: Container(
-          width: 200,
-          height: 260,
-          decoration: BoxDecoration(
-            image: DecorationImage(
-              image: NetworkImage(place.imageUrl),
-              fit: BoxFit.cover,
-              colorFilter: ColorFilter.mode(
-                Colors.black.withValues(alpha: 0.25),
-                BlendMode.srcOver,
-              ),
+        width: 200,
+        height: 260,
+        decoration: BoxDecoration(
+          image: DecorationImage(
+            image: NetworkImage(place.imageUrl),
+            fit: BoxFit.cover,
+            colorFilter: ColorFilter.mode(
+              Colors.black.withValues(alpha: 0.25),
+              BlendMode.srcOver,
             ),
-            gradient: LinearGradient(
-              colors: place.gradient,
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-            ),
-            borderRadius: BorderRadius.circular(28),
-            boxShadow: [
-              BoxShadow(
-                color: place.gradient[1].withValues(alpha: 0.32),
-                blurRadius: 20,
-                offset: const Offset(0, 12),
-              ),
-            ],
           ),
-          child: Stack(
-            children: [
-              Positioned(
-                top: -30,
-                right: -30,
-                child: Container(
-                  width: 120,
-                  height: 120,
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    color: Colors.white.withValues(alpha: 0.06),
-                  ),
+          gradient: LinearGradient(
+            colors: place.gradient,
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+          ),
+          borderRadius: BorderRadius.circular(28),
+          boxShadow: [
+            BoxShadow(
+              color: place.gradient[1].withValues(alpha: 0.32),
+              blurRadius: 20,
+              offset: const Offset(0, 12),
+            ),
+          ],
+        ),
+        child: Stack(
+          children: [
+            Positioned(
+              top: -30,
+              right: -30,
+              child: Container(
+                width: 120,
+                height: 120,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: Colors.white.withValues(alpha: 0.06),
                 ),
               ),
+            ),
 
-              // Heart
-              Positioned(
-                top: 16,
-                right: 16,
-                child: GestureDetector(
-                  onTap: () => _toggleFavorite(place),
-                  child: AnimatedContainer(
-                    duration: const Duration(milliseconds: 200),
-                    padding: const EdgeInsets.all(8),
-                    decoration: BoxDecoration(
-                      color: place.isLiked
-                          ? Colors.white
-                          : Colors.white.withValues(alpha: 0.85),
-                      shape: BoxShape.circle,
-                    ),
-                    child: Icon(
-                      place.isLiked
-                          ? Icons.favorite_rounded
-                          : Icons.favorite_border_rounded,
-                      color: place.isLiked ? Colors.redAccent : Colors.grey,
-                      size: 18,
-                    ),
+            // Heart
+            Positioned(
+              top: 16,
+              right: 16,
+              child: GestureDetector(
+                onTap: () => _toggleFavorite(place),
+                child: AnimatedContainer(
+                  duration: const Duration(milliseconds: 200),
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: place.isLiked
+                        ? Colors.white
+                        : Colors.white.withValues(alpha: 0.85),
+                    shape: BoxShape.circle,
+                  ),
+                  child: Icon(
+                    place.isLiked
+                        ? Icons.favorite_rounded
+                        : Icons.favorite_border_rounded,
+                    color: place.isLiked ? Colors.redAccent : Colors.grey,
+                    size: 18,
                   ),
                 ),
               ),
-              // Rating
-              Positioned(
-                top: 16,
-                left: 16,
-                child: Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 10,
-                    vertical: 5,
+            ),
+            // Rating
+            Positioned(
+              top: 16,
+              left: 16,
+              child: Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 10,
+                  vertical: 5,
+                ),
+                decoration: BoxDecoration(
+                  color: Colors.white.withValues(alpha: 0.92),
+                  borderRadius: BorderRadius.circular(50),
+                ),
+                child: place.ratingAvailable && place.rating != null
+                    ? Row(
+                        children: [
+                          const Icon(
+                            Icons.star_rounded,
+                            color: Color(0xFFFFA726),
+                            size: 14,
+                          ),
+                          Text(
+                            place.rating!.toStringAsFixed(1),
+                            style: const TextStyle(
+                              color: _P.deepNavy,
+                              fontSize: 12,
+                              fontWeight: FontWeight.w800,
+                            ),
+                          ),
+                        ],
+                      )
+                    : const Text(
+                        'Rating unavailable',
+                        style: TextStyle(color: _P.deepNavy, fontSize: 12),
+                      ),
+              ),
+            ),
+            // Details
+            Positioned(
+              bottom: 18,
+              left: 18,
+              right: 18,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    place.name,
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 18,
+                      fontWeight: FontWeight.w800,
+                      letterSpacing: -0.2,
+                    ),
                   ),
-                  decoration: BoxDecoration(
-                    color: Colors.white.withValues(alpha: 0.92),
-                    borderRadius: BorderRadius.circular(50),
-                  ),
-                  child: Row(
+                  const SizedBox(height: 6),
+                  Row(
                     children: [
                       const Icon(
-                        Icons.star_rounded,
-                        color: Color(0xFFFFA726),
-                        size: 14,
+                        Icons.location_on_rounded,
+                        color: Colors.white70,
+                        size: 13,
                       ),
-                      Text(
-                        getAverageRating(
-                          place.name,
-                          place.rating,
-                        ).toStringAsFixed(1),
-                        style: const TextStyle(
-                          color: _P.deepNavy,
-                          fontSize: 12,
-                          fontWeight: FontWeight.w800,
+                      const SizedBox(width: 4),
+                      Expanded(
+                        child: Text(
+                          place.location,
+                          style: const TextStyle(
+                            color: Colors.white70,
+                            fontSize: 12,
+                            fontWeight: FontWeight.w500,
+                          ),
+                          overflow: TextOverflow.ellipsis,
                         ),
                       ),
                     ],
                   ),
-                ),
+                ],
               ),
-              // Details
-              Positioned(
-                bottom: 18,
-                left: 18,
-                right: 18,
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      place.name,
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 18,
-                        fontWeight: FontWeight.w800,
-                        letterSpacing: -0.2,
-                      ),
-                    ),
-                    const SizedBox(height: 6),
-                    Row(
-                      children: [
-                        const Icon(
-                          Icons.location_on_rounded,
-                          color: Colors.white70,
-                          size: 13,
-                        ),
-                        const SizedBox(width: 4),
-                        Expanded(
-                          child: Text(
-                            place.location,
-                            style: const TextStyle(
-                              color: Colors.white70,
-                              fontSize: 12,
-                              fontWeight: FontWeight.w500,
-                            ),
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -1644,20 +1686,15 @@ class _HomePageState extends State<HomePage> {
                   ),
                 ),
                 const SizedBox(width: 8),
-                const Icon(
-                  Icons.star_rounded,
-                  color: Color(0xFFFFA726),
-                  size: 12,
-                ),
-                const SizedBox(width: 2),
-                Text(
-                  getAverageRating(place.name, place.rating).toStringAsFixed(1),
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 11,
-                    fontWeight: FontWeight.w700,
+                if (place.ratingAvailable && place.rating != null) ...[
+                  const Icon(Icons.star_rounded, color: Color(0xFFFFA726), size: 12),
+                  const SizedBox(width: 2),
+                  Text(
+                    place.rating!.toStringAsFixed(1),
+                    style: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.w700),
                   ),
-                ),
+                ] else
+                  const Text('Rating unavailable', style: TextStyle(color: Colors.white70, fontSize: 10)),
               ],
             ),
           ],
@@ -1996,10 +2033,9 @@ class _HomePageState extends State<HomePage> {
               ),
             ),
             GestureDetector(
-              onTap: () => Navigator.of(context).pushReplacementNamed(
-                '/plan',
-                arguments: {'package': title},
-              ),
+              onTap: () => Navigator.of(
+                context,
+              ).pushReplacementNamed('/plan', arguments: {'package': title}),
               child: Container(
                 padding: const EdgeInsets.all(8),
                 decoration: const BoxDecoration(
@@ -2035,31 +2071,98 @@ class _HomePageState extends State<HomePage> {
       totalTime = '8.5 hrs';
       stopsCount = 4;
       days['Day 1'] = [
-        {'name': 'Kaputian Beach', 'location': 'South Samal', 'time': '9:00 AM', 'duration': '2.5h', 'image': 'https://images.unsplash.com/photo-1507525428034-b723cf961d3e?auto=format&fit=crop&w=300&q=80', 'transit': '12.8 km · 25 min'},
-        {'name': 'Talikud Island', 'location': 'Kaputian District', 'time': '12:00 PM', 'duration': '3.0h', 'image': 'https://images.unsplash.com/photo-1505118380757-91f5f5632de0?auto=format&fit=crop&w=300&q=80'},
+        {
+          'name': 'Kaputian Beach',
+          'location': 'South Samal',
+          'time': '9:00 AM',
+          'duration': '2.5h',
+          'image':
+              'https://images.unsplash.com/photo-1507525428034-b723cf961d3e?auto=format&fit=crop&w=300&q=80',
+          'transit': '12.8 km · 25 min',
+        },
+        {
+          'name': 'Talikud Island',
+          'location': 'Kaputian District',
+          'time': '12:00 PM',
+          'duration': '3.0h',
+          'image':
+              'https://images.unsplash.com/photo-1505118380757-91f5f5632de0?auto=format&fit=crop&w=300&q=80',
+        },
       ];
       days['Day 2'] = [
-        {'name': 'Vanishing Island', 'location': 'Babak District', 'time': '10:00 AM', 'duration': '3.0h', 'image': 'https://images.unsplash.com/photo-1473116763269-255448993f66?auto=format&fit=crop&w=300&q=80'},
+        {
+          'name': 'Vanishing Island',
+          'location': 'Babak District',
+          'time': '10:00 AM',
+          'duration': '3.0h',
+          'image':
+              'https://images.unsplash.com/photo-1473116763269-255448993f66?auto=format&fit=crop&w=300&q=80',
+        },
       ];
       days['Day 3'] = [
-        {'name': 'Pearl Farm Resort', 'location': 'Kaputian, Samal', 'time': '11:00 AM', 'duration': '4.0h', 'image': 'https://images.unsplash.com/photo-1544735716-392fe2489ffa?auto=format&fit=crop&w=300&q=80'},
+        {
+          'name': 'Pearl Farm Resort',
+          'location': 'Kaputian, Samal',
+          'time': '11:00 AM',
+          'duration': '4.0h',
+          'image':
+              'https://images.unsplash.com/photo-1544735716-392fe2489ffa?auto=format&fit=crop&w=300&q=80',
+        },
       ];
     } else if (title.contains('Forest Trek')) {
       distance = '18.2 km';
       totalTime = '5.5 hrs';
       stopsCount = 3;
       days['Day 1'] = [
-        {'name': 'Hagimit Falls', 'location': 'Penaplata, Samal', 'time': '8:30 AM', 'duration': '2.0h', 'image': 'https://images.unsplash.com/photo-1470071459604-3b5ec3a7fe05?auto=format&fit=crop&w=300&q=80', 'transit': '4.5 km · 12 min'},
-        {'name': 'Maxima Aquafun', 'location': 'Penaplata, Samal', 'time': '10:42 AM', 'duration': '2.0h', 'image': 'https://images.unsplash.com/photo-1538964173425-93884d739596?auto=format&fit=crop&w=300&q=80', 'transit': '13.7 km · 28 min'},
-        {'name': 'Ligid Island Cave', 'location': 'Penaplata, Samal', 'time': '1:30 PM', 'duration': '1.5h', 'image': 'https://images.unsplash.com/photo-1510414842594-a61c69b5ae57?auto=format&fit=crop&w=300&q=80'},
+        {
+          'name': 'Hagimit Falls',
+          'location': 'Penaplata, Samal',
+          'time': '8:30 AM',
+          'duration': '2.0h',
+          'image':
+              'https://images.unsplash.com/photo-1470071459604-3b5ec3a7fe05?auto=format&fit=crop&w=300&q=80',
+          'transit': '4.5 km · 12 min',
+        },
+        {
+          'name': 'Maxima Aquafun',
+          'location': 'Penaplata, Samal',
+          'time': '10:42 AM',
+          'duration': '2.0h',
+          'image':
+              'https://images.unsplash.com/photo-1538964173425-93884d739596?auto=format&fit=crop&w=300&q=80',
+          'transit': '13.7 km · 28 min',
+        },
+        {
+          'name': 'Ligid Island Cave',
+          'location': 'Penaplata, Samal',
+          'time': '1:30 PM',
+          'duration': '1.5h',
+          'image':
+              'https://images.unsplash.com/photo-1510414842594-a61c69b5ae57?auto=format&fit=crop&w=300&q=80',
+        },
       ];
     } else {
       distance = '11.3 km';
       totalTime = '4.0 hrs';
       stopsCount = 2;
       days['Day 1'] = [
-        {'name': 'Mt. Puting Bato', 'location': 'Bali-Bali, Samal', 'time': '3:00 PM', 'duration': '2.5h', 'image': 'https://images.unsplash.com/photo-1454496522488-7a8e488e8606?auto=format&fit=crop&w=300&q=80', 'transit': '5.1 km · 14 min'},
-        {'name': 'Bali-Bali View Deck', 'location': 'Penaplata, Samal', 'time': '5:45 PM', 'duration': '1.5h', 'image': 'https://images.unsplash.com/photo-1506929562872-bb421503ef21?auto=format&fit=crop&w=300&q=80'},
+        {
+          'name': 'Mt. Puting Bato',
+          'location': 'Bali-Bali, Samal',
+          'time': '3:00 PM',
+          'duration': '2.5h',
+          'image':
+              'https://images.unsplash.com/photo-1454496522488-7a8e488e8606?auto=format&fit=crop&w=300&q=80',
+          'transit': '5.1 km · 14 min',
+        },
+        {
+          'name': 'Bali-Bali View Deck',
+          'location': 'Penaplata, Samal',
+          'time': '5:45 PM',
+          'duration': '1.5h',
+          'image':
+              'https://images.unsplash.com/photo-1506929562872-bb421503ef21?auto=format&fit=crop&w=300&q=80',
+        },
       ];
     }
 
@@ -2086,7 +2189,8 @@ class _HomePageState extends State<HomePage> {
           children: [
             const SizedBox(height: 12),
             Container(
-              width: 36, height: 4,
+              width: 36,
+              height: 4,
               decoration: BoxDecoration(
                 color: Colors.grey.shade300,
                 borderRadius: BorderRadius.circular(50),
@@ -2095,7 +2199,12 @@ class _HomePageState extends State<HomePage> {
             const SizedBox(height: 8),
             Expanded(
               child: SingleChildScrollView(
-                padding: const EdgeInsets.only(left: 20, right: 20, bottom: 24, top: 8),
+                padding: const EdgeInsets.only(
+                  left: 20,
+                  right: 20,
+                  bottom: 24,
+                  top: 8,
+                ),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
@@ -2122,18 +2231,36 @@ class _HomePageState extends State<HomePage> {
                                   color: Colors.white.withValues(alpha: 0.12),
                                   borderRadius: BorderRadius.circular(14),
                                 ),
-                                child: const Icon(Icons.auto_awesome_rounded, color: Colors.white, size: 20),
+                                child: const Icon(
+                                  Icons.auto_awesome_rounded,
+                                  color: Colors.white,
+                                  size: 20,
+                                ),
                               ),
                               const SizedBox(width: 12),
                               Expanded(
                                 child: Column(
                                   crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
-                                    Text('Optimized by MOGA',
-                                        style: TextStyle(color: Colors.white.withValues(alpha: 0.7), fontSize: 11, fontWeight: FontWeight.w600)),
+                                    Text(
+                                      'Optimized by MOGA',
+                                      style: TextStyle(
+                                        color: Colors.white.withValues(
+                                          alpha: 0.7,
+                                        ),
+                                        fontSize: 11,
+                                        fontWeight: FontWeight.w600,
+                                      ),
+                                    ),
                                     const SizedBox(height: 2),
-                                    Text(dateStr,
-                                        style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.w800)),
+                                    Text(
+                                      dateStr,
+                                      style: const TextStyle(
+                                        color: Colors.white,
+                                        fontSize: 16,
+                                        fontWeight: FontWeight.w800,
+                                      ),
+                                    ),
                                   ],
                                 ),
                               ),
@@ -2142,11 +2269,31 @@ class _HomePageState extends State<HomePage> {
                           const SizedBox(height: 20),
                           Row(
                             children: [
-                              _statColumn(Icons.straighten_rounded, distance, 'Distance'),
-                              Container(width: 1, height: 36, color: Colors.white.withValues(alpha: 0.15)),
-                              _statColumn(Icons.schedule_rounded, totalTime, 'Total time'),
-                              Container(width: 1, height: 36, color: Colors.white.withValues(alpha: 0.15)),
-                              _statColumn(Icons.location_on_rounded, '$stopsCount', 'Stops'),
+                              _statColumn(
+                                Icons.straighten_rounded,
+                                distance,
+                                'Distance',
+                              ),
+                              Container(
+                                width: 1,
+                                height: 36,
+                                color: Colors.white.withValues(alpha: 0.15),
+                              ),
+                              _statColumn(
+                                Icons.schedule_rounded,
+                                totalTime,
+                                'Total time',
+                              ),
+                              Container(
+                                width: 1,
+                                height: 36,
+                                color: Colors.white.withValues(alpha: 0.15),
+                              ),
+                              _statColumn(
+                                Icons.location_on_rounded,
+                                '$stopsCount',
+                                'Stops',
+                              ),
                             ],
                           ),
                         ],
@@ -2157,16 +2304,36 @@ class _HomePageState extends State<HomePage> {
                     // ── Route order header ──
                     Row(
                       children: [
-                        Container(width: 4, height: 22, decoration: BoxDecoration(color: _P.blue, borderRadius: BorderRadius.circular(50))),
+                        Container(
+                          width: 4,
+                          height: 22,
+                          decoration: BoxDecoration(
+                            color: _P.blue,
+                            borderRadius: BorderRadius.circular(50),
+                          ),
+                        ),
                         const SizedBox(width: 10),
-                        const Text('Route order', style: TextStyle(color: _P.deepNavy, fontSize: 17, fontWeight: FontWeight.w800)),
+                        const Text(
+                          'Route order',
+                          style: TextStyle(
+                            color: _P.deepNavy,
+                            fontSize: 17,
+                            fontWeight: FontWeight.w800,
+                          ),
+                        ),
                       ],
                     ),
                     const SizedBox(height: 4),
                     const Padding(
                       padding: EdgeInsets.only(left: 14),
-                      child: Text('Stop-by-stop, in the order MOGA recommends.',
-                          style: TextStyle(color: _P.inkSoft, fontSize: 12, fontWeight: FontWeight.w500)),
+                      child: Text(
+                        'Stop-by-stop, in the order MOGA recommends.',
+                        style: TextStyle(
+                          color: _P.inkSoft,
+                          fontSize: 12,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
                     ),
                     const SizedBox(height: 20),
 
@@ -2178,13 +2345,22 @@ class _HomePageState extends State<HomePage> {
                         if (days.length > 1) ...[
                           Container(
                             margin: const EdgeInsets.only(bottom: 14),
-                            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 14,
+                              vertical: 6,
+                            ),
                             decoration: BoxDecoration(
                               color: _P.iceBlue,
                               borderRadius: BorderRadius.circular(50),
                             ),
-                            child: Text(dayLabel,
-                                style: const TextStyle(color: _P.deepNavy, fontSize: 12, fontWeight: FontWeight.w800)),
+                            child: Text(
+                              dayLabel,
+                              style: const TextStyle(
+                                color: _P.deepNavy,
+                                fontSize: 12,
+                                fontWeight: FontWeight.w800,
+                              ),
+                            ),
                           ),
                         ],
                         ...stops.asMap().entries.map((e) {
@@ -2192,7 +2368,11 @@ class _HomePageState extends State<HomePage> {
                           final stop = e.value;
                           final isLast = idx == stops.length - 1;
                           final transit = stop['transit'];
-                          return _buildTimelineStop(stop, isLast && (dayEntry.key == days.keys.last), transit);
+                          return _buildTimelineStop(
+                            stop,
+                            isLast && (dayEntry.key == days.keys.last),
+                            transit,
+                          );
                         }),
                       ];
                     }),
@@ -2212,21 +2392,41 @@ class _HomePageState extends State<HomePage> {
                         width: double.infinity,
                         padding: const EdgeInsets.symmetric(vertical: 16),
                         decoration: BoxDecoration(
-                          gradient: const LinearGradient(colors: [_P.blue, Color(0xFF1E88E5)]),
+                          gradient: const LinearGradient(
+                            colors: [_P.blue, Color(0xFF1E88E5)],
+                          ),
                           borderRadius: BorderRadius.circular(50),
                           boxShadow: [
-                            BoxShadow(color: _P.blue.withValues(alpha: 0.3), blurRadius: 16, offset: const Offset(0, 6)),
+                            BoxShadow(
+                              color: _P.blue.withValues(alpha: 0.3),
+                              blurRadius: 16,
+                              offset: const Offset(0, 6),
+                            ),
                           ],
                         ),
                         child: const Row(
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: [
-                            Icon(Icons.route_rounded, color: Colors.white, size: 20),
+                            Icon(
+                              Icons.route_rounded,
+                              color: Colors.white,
+                              size: 20,
+                            ),
                             SizedBox(width: 10),
-                            Text('Open in Planner',
-                                style: TextStyle(color: Colors.white, fontSize: 15, fontWeight: FontWeight.w800)),
+                            Text(
+                              'Open in Planner',
+                              style: TextStyle(
+                                color: Colors.white,
+                                fontSize: 15,
+                                fontWeight: FontWeight.w800,
+                              ),
+                            ),
                             SizedBox(width: 6),
-                            Icon(Icons.arrow_forward_rounded, color: Colors.white, size: 18),
+                            Icon(
+                              Icons.arrow_forward_rounded,
+                              color: Colors.white,
+                              size: 18,
+                            ),
                           ],
                         ),
                       ),
@@ -2242,7 +2442,20 @@ class _HomePageState extends State<HomePage> {
   }
 
   String _monthName(int m) {
-    const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    const months = [
+      'Jan',
+      'Feb',
+      'Mar',
+      'Apr',
+      'May',
+      'Jun',
+      'Jul',
+      'Aug',
+      'Sep',
+      'Oct',
+      'Nov',
+      'Dec',
+    ];
     return months[m - 1];
   }
 
@@ -2252,15 +2465,33 @@ class _HomePageState extends State<HomePage> {
         children: [
           Icon(icon, color: Colors.white.withValues(alpha: 0.6), size: 18),
           const SizedBox(height: 6),
-          Text(value, style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.w800)),
+          Text(
+            value,
+            style: const TextStyle(
+              color: Colors.white,
+              fontSize: 16,
+              fontWeight: FontWeight.w800,
+            ),
+          ),
           const SizedBox(height: 2),
-          Text(label, style: TextStyle(color: Colors.white.withValues(alpha: 0.55), fontSize: 11, fontWeight: FontWeight.w600)),
+          Text(
+            label,
+            style: TextStyle(
+              color: Colors.white.withValues(alpha: 0.55),
+              fontSize: 11,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
         ],
       ),
     );
   }
 
-  Widget _buildTimelineStop(Map<String, String> stop, bool isLastStop, String? transit) {
+  Widget _buildTimelineStop(
+    Map<String, String> stop,
+    bool isLastStop,
+    String? transit,
+  ) {
     return Column(
       children: [
         Row(
@@ -2279,7 +2510,11 @@ class _HomePageState extends State<HomePage> {
                     errorBuilder: (_, _, _) => CircleAvatar(
                       radius: 21,
                       backgroundColor: _P.iceBlue,
-                      child: const Icon(Icons.image_rounded, color: _P.blue, size: 18),
+                      child: const Icon(
+                        Icons.image_rounded,
+                        color: _P.blue,
+                        size: 18,
+                      ),
                     ),
                   ),
                 ),
@@ -2310,17 +2545,33 @@ class _HomePageState extends State<HomePage> {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Text(stop['name'] ?? '',
-                              style: const TextStyle(color: _P.deepNavy, fontSize: 14, fontWeight: FontWeight.w800)),
+                          Text(
+                            stop['name'] ?? '',
+                            style: const TextStyle(
+                              color: _P.deepNavy,
+                              fontSize: 14,
+                              fontWeight: FontWeight.w800,
+                            ),
+                          ),
                           const SizedBox(height: 4),
                           Row(
                             children: [
-                              const Icon(Icons.location_on_rounded, color: _P.navy, size: 12),
+                              const Icon(
+                                Icons.location_on_rounded,
+                                color: _P.navy,
+                                size: 12,
+                              ),
                               const SizedBox(width: 3),
                               Flexible(
-                                child: Text(stop['location'] ?? '',
-                                    style: const TextStyle(color: _P.inkSoft, fontSize: 11.5, fontWeight: FontWeight.w500),
-                                    overflow: TextOverflow.ellipsis),
+                                child: Text(
+                                  stop['location'] ?? '',
+                                  style: const TextStyle(
+                                    color: _P.inkSoft,
+                                    fontSize: 11.5,
+                                    fontWeight: FontWeight.w500,
+                                  ),
+                                  overflow: TextOverflow.ellipsis,
+                                ),
                               ),
                             ],
                           ),
@@ -2329,7 +2580,10 @@ class _HomePageState extends State<HomePage> {
                     ),
                     const SizedBox(width: 8),
                     Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 10,
+                        vertical: 6,
+                      ),
                       decoration: BoxDecoration(
                         color: Colors.white,
                         borderRadius: BorderRadius.circular(50),
@@ -2337,10 +2591,20 @@ class _HomePageState extends State<HomePage> {
                       child: Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          const Icon(Icons.access_time_rounded, color: _P.blue, size: 13),
+                          const Icon(
+                            Icons.access_time_rounded,
+                            color: _P.blue,
+                            size: 13,
+                          ),
                           const SizedBox(width: 4),
-                          Text(stop['duration'] ?? '',
-                              style: const TextStyle(color: _P.deepNavy, fontSize: 11, fontWeight: FontWeight.w800)),
+                          Text(
+                            stop['duration'] ?? '',
+                            style: const TextStyle(
+                              color: _P.deepNavy,
+                              fontSize: 11,
+                              fontWeight: FontWeight.w800,
+                            ),
+                          ),
                         ],
                       ),
                     ),
@@ -2365,10 +2629,20 @@ class _HomePageState extends State<HomePage> {
               child: Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  const Icon(Icons.directions_car_rounded, color: _P.blue, size: 13),
+                  const Icon(
+                    Icons.directions_car_rounded,
+                    color: _P.blue,
+                    size: 13,
+                  ),
                   const SizedBox(width: 6),
-                  Text(transit,
-                      style: const TextStyle(color: _P.inkSoft, fontSize: 11, fontWeight: FontWeight.w600)),
+                  Text(
+                    transit,
+                    style: const TextStyle(
+                      color: _P.inkSoft,
+                      fontSize: 11,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
                 ],
               ),
             ),
@@ -2396,9 +2670,9 @@ class _HomePageState extends State<HomePage> {
   }
 
   // ── Rating Summary (Google Play Store Style) ──
-  Widget _buildRatingSummary(String placeName, double defaultRating) {
+  Widget _buildRatingSummary(String placeName, double? defaultRating) {
     final reviews = globalReviews[placeName] ?? [];
-    final avgRating = getAverageRating(placeName, defaultRating);
+    final avgRating = defaultRating;
     final totalReviews = reviews.length;
 
     // Count per star
@@ -2437,12 +2711,36 @@ class _HomePageState extends State<HomePage> {
           ],
         ),
         const SizedBox(height: 16),
-        if (reviews.isEmpty)
+        if (reviews.isEmpty && avgRating == null)
+          const Padding(
+            padding: EdgeInsets.symmetric(vertical: 20),
+            child: Center(
+              child: Text(
+                'Rating unavailable. No reviews yet; be the first to review!',
+                style: TextStyle(
+                  color: _P.inkSoft,
+                  fontStyle: FontStyle.italic,
+                ),
+              ),
+            ),
+          )
+        else if (reviews.isEmpty)
           const Padding(
             padding: EdgeInsets.symmetric(vertical: 20),
             child: Center(
               child: Text(
                 'No reviews yet. Be the first to review!',
+                style: TextStyle(color: _P.inkSoft, fontStyle: FontStyle.italic),
+              ),
+            ),
+          )
+        else if (avgRating == null)
+          const Padding(
+            padding: EdgeInsets.symmetric(vertical: 20),
+            child: Center(
+              child: Text(
+                'Destination rating unavailable. Review entries do not provide a verified public average.',
+                textAlign: TextAlign.center,
                 style: TextStyle(color: _P.inkSoft, fontStyle: FontStyle.italic),
               ),
             ),
@@ -2471,8 +2769,8 @@ class _HomePageState extends State<HomePage> {
                         filled >= 0.75
                             ? Icons.star_rounded
                             : filled >= 0.25
-                                ? Icons.star_half_rounded
-                                : Icons.star_border_rounded,
+                            ? Icons.star_half_rounded
+                            : Icons.star_border_rounded,
                         color: _P.blue,
                         size: 16,
                       );
@@ -2481,10 +2779,7 @@ class _HomePageState extends State<HomePage> {
                   const SizedBox(height: 2),
                   Text(
                     '$totalReviews reviews',
-                    style: TextStyle(
-                      color: Colors.grey.shade600,
-                      fontSize: 11,
-                    ),
+                    style: TextStyle(color: Colors.grey.shade600, fontSize: 11),
                   ),
                 ],
               ),
@@ -2565,17 +2860,15 @@ class _HomePageState extends State<HomePage> {
               const SizedBox(height: 4),
               Text(
                 'Tell others what you think',
-                style: TextStyle(
-                  color: Colors.grey.shade500,
-                  fontSize: 12,
-                ),
+                style: TextStyle(color: Colors.grey.shade500, fontSize: 12),
               ),
               const SizedBox(height: 10),
               Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: List.generate(5, (i) {
                   return GestureDetector(
-                    onTap: () => _showWriteReviewSheet(placeName, initialRating: i + 1),
+                    onTap: () =>
+                        _showWriteReviewSheet(placeName, initialRating: i + 1),
                     child: Padding(
                       padding: const EdgeInsets.symmetric(horizontal: 6),
                       child: Icon(
@@ -2612,7 +2905,9 @@ class _HomePageState extends State<HomePage> {
               String dateStr = '${r.date.day}/${r.date.month}/${r.date.year}';
               if (diff.inDays == 0) dateStr = 'Today';
               if (diff.inDays == 1) dateStr = 'Yesterday';
-              if (diff.inDays > 1 && diff.inDays < 30) dateStr = '${diff.inDays} days ago';
+              if (diff.inDays > 1 && diff.inDays < 30) {
+                dateStr = '${diff.inDays} days ago';
+              }
 
               return Container(
                 padding: const EdgeInsets.all(12),
@@ -2987,5 +3282,3 @@ class _HomePageState extends State<HomePage> {
     return 'Good Evening';
   }
 }
-
-

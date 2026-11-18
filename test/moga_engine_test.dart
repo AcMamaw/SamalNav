@@ -21,6 +21,7 @@ MogaEngine engine(
   double hours = 9,
   int daysPopulation = 16,
   int generations = 8,
+  MogaStartingPoint? startingPoint,
 }) =>
     MogaEngine(
       destinations: destinations,
@@ -28,6 +29,7 @@ MogaEngine engine(
       populationSize: daysPopulation,
       generations: generations,
       randomSeed: seed,
+      startingPoint: startingPoint,
     );
 
 double roadEstimateKm(Destination from, Destination to) {
@@ -72,6 +74,116 @@ void main() {
       expect(result.totalDistanceKm, 0);
       expect(result.totalTimeHours, 1);
       expect(result.feasibility.isFeasible, isTrue);
+    });
+
+    test('includes the supplied origin leg in distance, time, and fitness', () {
+      const start = MogaStartingPoint(latitude: 7.1, longitude: 125.7);
+      final destinationRecord = destination('One', lat: 7.0, lng: 126.0);
+      final distance = roadEstimateKm(
+        Destination(
+          name: 'origin',
+          location: '',
+          lat: start.latitude,
+          lng: start.longitude,
+          visitHours: 0,
+          category: '',
+        ),
+        destinationRecord,
+      );
+      final result = engine([
+        destinationRecord,
+      ], startingPoint: start).optimizeDayTour();
+
+      expect(result.stopOrder, [0]); // Origin is context, not an extra stop.
+      expect(result.totalDistanceKm, closeTo(distance, 1e-9));
+      expect(result.totalTimeHours, closeTo(1 + distance / 30, 1e-9));
+      expect(result.legDistances, hasLength(1));
+      expect(result.legDistances.single, closeTo(distance, 1e-9));
+      expect(result.legTravelMins, hasLength(1));
+      expect(result.legTravelMins.single, closeTo(distance / 30 * 60, 1e-9));
+      expect(result.paretoFront.single.fitness[0], closeTo(distance, 1e-9));
+      expect(result.paretoFront.single.fitness[1], -1);
+      expect(result.paretoFront.single.fitness[2], 0);
+    });
+
+    test('different supplied origins produce different route evaluations', () {
+      final stop = destination('One', lat: 7.0, lng: 126.0);
+      final near = engine(
+        [stop],
+        startingPoint: const MogaStartingPoint(latitude: 7, longitude: 126),
+      ).optimizeDayTour();
+      final far = engine(
+        [stop],
+        startingPoint: const MogaStartingPoint(latitude: 7.5, longitude: 126.5),
+      ).optimizeDayTour();
+
+      expect(near.totalDistanceKm, 0);
+      expect(far.totalDistanceKm, greaterThan(near.totalDistanceKm));
+      expect(far.totalTimeHours, greaterThan(near.totalTimeHours));
+    });
+
+    test('uses origin on first nonempty assigned day only', () {
+      const start = MogaStartingPoint(latitude: 7.1, longitude: 125.7);
+      final stops = [
+        destination('A', lat: 7.0, lng: 126.0),
+        destination('B', lat: 7.2, lng: 126.1),
+      ];
+      final expectedOriginLeg = roadEstimateKm(
+        Destination(
+          name: 'origin',
+          location: '',
+          lat: start.latitude,
+          lng: start.longitude,
+          visitHours: 0,
+          category: '',
+        ),
+        stops[0],
+      );
+      final result = engine(stops, startingPoint: start)
+          .optimizeAssignedItinerary([
+            [],
+            [0],
+            [1],
+          ]);
+
+      expect(result.days, hasLength(3));
+      expect(result.days[0].stopOrder, isEmpty);
+      expect(result.days[1].stopOrder, [0]);
+      expect(result.days[1].distanceKm, closeTo(expectedOriginLeg, 1e-9));
+      expect(
+        result.days[1].timeHours,
+        closeTo(1 + expectedOriginLeg / 30, 1e-9),
+      );
+      expect(result.days[1].legDistances, hasLength(1));
+      expect(
+        result.days[1].legDistances.single,
+        closeTo(expectedOriginLeg, 1e-9),
+      );
+      expect(result.days[2].stopOrder, [1]);
+      expect(result.days[2].distanceKm, 0);
+      expect(result.days.expand((day) => day.stopOrder).length, 2);
+    });
+
+    test('rejects an invalid starting coordinate', () {
+      expect(
+        () => engine(
+          [destination('A')],
+          startingPoint: const MogaStartingPoint(latitude: 91, longitude: 126),
+        ),
+        throwsArgumentError,
+      );
+    });
+
+    test('origin travel is included when evaluating daily stop capacity', () {
+      final result = engine(
+        [destination('Long visit', hours: 8.9, lat: 7, lng: 126.2)],
+        hours: 9,
+        startingPoint: const MogaStartingPoint(latitude: 7, longitude: 125.7),
+      ).optimizeDayTour();
+
+      expect(result.stopOrder, [0]);
+      expect(result.feasibility.isFeasible, isFalse);
+      expect(result.paretoFront.single.fitness[1], 0);
     });
 
     test('RouteChromosome.copy safely copies unevaluated and evaluated fitness', () {

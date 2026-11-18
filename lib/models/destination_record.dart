@@ -1,17 +1,36 @@
 import 'package:flutter/material.dart';
 import 'price_info.dart';
 
+/// Provenance is assigned by the repository boundary; IDs alone do not prove
+/// that a record came from the database.
+enum DestinationRecordSource { unknown, database, fallback }
+
+/// Numeric validity is separate from whether the value has verified
+/// provenance. A plausible number without explicit rating verification is
+/// retained as data but is not presented as an available public rating.
+enum DestinationRatingDataState { available, missing, invalid }
+
+enum DestinationRatingVerification { verified, unverified, unknown }
+
 class DestinationRecord {
   final String id;
   final String name;
   final String location;
   final double lat;
   final double lng;
+  final String? categoryId;
   final String category;
-  final double rating;
+  /// Parsed 0..5 value, retained even if provenance is not verified.
+  final double? rating;
+  final DestinationRatingDataState ratingDataState;
+  final DestinationRatingVerification ratingVerification;
+  final String? ratingSource;
+  final DateTime? ratingRetrievedAt;
+  final DateTime? ratingFreshUntil;
   final String status;
   final bool isVerified;
   final String? description;
+
   /// Raw amount from the row or sample fixture. It has no implied currency,
   /// pricing basis, or verification status.
   final Object? rawEntranceFee;
@@ -20,6 +39,9 @@ class DestinationRecord {
   final List<String> imageUrls;
   final String? ownerName;
   final Map<String, String>? operatingHours; // {"open":"08:00","close":"17:00"}
+  final DestinationRecordSource source;
+  final bool hasUsableCoordinates;
+  final bool hasUsableVisitDuration;
 
   const DestinationRecord({
     required this.id,
@@ -27,8 +49,14 @@ class DestinationRecord {
     required this.location,
     required this.lat,
     required this.lng,
+    this.categoryId,
     required this.category,
     required this.rating,
+    this.ratingDataState = DestinationRatingDataState.available,
+    this.ratingVerification = DestinationRatingVerification.unknown,
+    this.ratingSource,
+    this.ratingRetrievedAt,
+    this.ratingFreshUntil,
     required this.status,
     required this.isVerified,
     this.description,
@@ -38,6 +66,9 @@ class DestinationRecord {
     this.imageUrls = const [],
     this.ownerName,
     this.operatingHours,
+    this.source = DestinationRecordSource.unknown,
+    this.hasUsableCoordinates = false,
+    this.hasUsableVisitDuration = false,
   });
 
   bool get isActive => status == 'active';
@@ -47,6 +78,18 @@ class DestinationRecord {
   double get visitHours => averageStayMinutes / 60.0;
 
   PriceInfo get entrancePrice => PriceInfo.fromRaw(rawEntranceFee);
+
+  /// Only an explicitly verified, valid database rating is displayable as a
+  /// public rating. Bundled fallback values and unverified values remain
+  /// preserved in [rating] but are unavailable to rating consumers.
+  double? get availableRating {
+    if (source == DestinationRecordSource.fallback ||
+        ratingDataState != DestinationRatingDataState.available ||
+        ratingVerification != DestinationRatingVerification.verified) {
+      return null;
+    }
+    return rating;
+  }
 
   /// Display text does not infer currency, pricing basis, or free admission.
   String get formattedPrice => entrancePrice.displayLabel;
@@ -91,8 +134,12 @@ class DestinationRecord {
     }
   }
 
-  factory DestinationRecord.fromJson(Map<String, dynamic> json) {
-    final status = json['status'] as String? ??
+  factory DestinationRecord.fromJson(
+    Map<String, dynamic> json, {
+    DestinationRecordSource source = DestinationRecordSource.unknown,
+  }) {
+    final status =
+        json['status'] as String? ??
         ((json['is_active'] as bool? ?? true) ? 'active' : 'inactive');
 
     // Parse image_urls from Postgres TEXT[] or JSON array
@@ -106,14 +153,23 @@ class DestinationRecord {
     Map<String, String>? parsedHours;
     final rawHours = json['operating_hours'];
     if (rawHours is Map) {
-      parsedHours = rawHours.map((k, v) => MapEntry(k.toString(), v.toString()));
+      parsedHours = rawHours.map(
+        (k, v) => MapEntry(k.toString(), v.toString()),
+      );
     }
 
-    double parseDouble(dynamic val, double fallback) {
-      if (val == null) return fallback;
-      if (val is num) return val.toDouble();
-      return double.tryParse(val.toString()) ?? fallback;
-    }
+    final rawRating = json.containsKey('rating_average')
+        ? json['rating_average']
+        : json['rating'];
+    final parsedRating = _tryFiniteDouble(rawRating);
+    final validRating = parsedRating != null &&
+        parsedRating >= 0 &&
+        parsedRating <= 5;
+    final ratingVerification = switch (json['rating_is_verified']) {
+      true => DestinationRatingVerification.verified,
+      false => DestinationRatingVerification.unverified,
+      _ => DestinationRatingVerification.unknown,
+    };
 
     int parseInt(dynamic val, int fallback) {
       if (val == null) return fallback;
@@ -122,14 +178,32 @@ class DestinationRecord {
       return int.tryParse(val.toString()) ?? fallback;
     }
 
+    final categoryId = _parseNullableUuid(json['category_id']);
+    final rawLat = json['lat'] ?? json['latitude'];
+    final rawLng = json['lng'] ?? json['longitude'];
+    final parsedLat = _tryFiniteDouble(rawLat);
+    final parsedLng = _tryFiniteDouble(rawLng);
+    final rawVisitDuration = json['average_stay_minutes'];
+    final visitDuration = _tryInteger(rawVisitDuration);
+
     return DestinationRecord(
       id: json['id']?.toString() ?? '',
       name: json['name'] as String? ?? 'Unnamed Spot',
       location: json['location'] as String? ?? 'Samal Island',
-      lat: parseDouble(json['lat'] ?? json['latitude'], 7.085),
-      lng: parseDouble(json['lng'] ?? json['longitude'], 125.730),
+      lat: _tryFiniteDouble(json['lat'] ?? json['latitude']) ?? 7.085,
+      lng: _tryFiniteDouble(json['lng'] ?? json['longitude']) ?? 125.730,
+      categoryId: categoryId,
       category: json['category'] as String? ?? 'Resort',
-      rating: parseDouble(json['rating_average'] ?? json['rating'], 4.5),
+      rating: validRating ? parsedRating : null,
+      ratingDataState: rawRating == null
+          ? DestinationRatingDataState.missing
+          : validRating
+          ? DestinationRatingDataState.available
+          : DestinationRatingDataState.invalid,
+      ratingVerification: ratingVerification,
+      ratingSource: _nonEmptyString(json['rating_source']),
+      ratingRetrievedAt: _tryDateTime(json['rating_retrieved_at']),
+      ratingFreshUntil: _tryDateTime(json['rating_fresh_until']),
       status: status,
       isVerified: json['is_verified'] as bool? ?? false,
       description: json['description'] as String?,
@@ -139,6 +213,77 @@ class DestinationRecord {
       imageUrls: parsedImageUrls,
       ownerName: json['owner_name'] as String?,
       operatingHours: parsedHours,
+      source: source,
+      hasUsableCoordinates:
+          parsedLat != null &&
+          parsedLng != null &&
+          parsedLat >= -90 &&
+          parsedLat <= 90 &&
+          parsedLng >= -180 &&
+          parsedLng <= 180,
+      hasUsableVisitDuration: visitDuration != null && visitDuration >= 0,
+    );
+  }
+
+  static double? _tryFiniteDouble(Object? value) {
+    final parsed = switch (value) {
+      num number => number.toDouble(),
+      String text => double.tryParse(text),
+      _ => null,
+    };
+    return parsed != null && parsed.isFinite ? parsed : null;
+  }
+
+  static DateTime? _tryDateTime(Object? value) {
+    if (value is DateTime) return value;
+    if (value is String) return DateTime.tryParse(value);
+    return null;
+  }
+
+  static String? _nonEmptyString(Object? value) {
+    if (value is! String || value.trim().isEmpty) return null;
+    return value;
+  }
+
+  static int? _tryInteger(Object? value) {
+    if (value is int) return value;
+    if (value is num && value.isFinite && value == value.roundToDouble()) {
+      return value.toInt();
+    }
+    if (value is String) return int.tryParse(value);
+    return null;
+  }
+
+  /// Serializes fields represented by this model using database column names.
+  /// The original destination text category is kept alongside its nullable ID.
+  Map<String, dynamic> toJson() => {
+    'id': id,
+    'name': name,
+    'location': location,
+    'lat': lat,
+    'lng': lng,
+    'category_id': categoryId,
+    'category': category,
+    'rating_average': rating,
+    'status': status,
+    'is_verified': isVerified,
+    'description': description,
+    'entrance_fee': rawEntranceFee,
+    'average_stay_minutes': averageStayMinutes,
+    'image_url': imageUrl,
+    'image_urls': imageUrls,
+    'operating_hours': operatingHours,
+  };
+
+  static final RegExp _uuidPattern = RegExp(
+    r'^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$',
+  );
+
+  static String? _parseNullableUuid(Object? value) {
+    if (value == null) return null;
+    if (value is String && _uuidPattern.hasMatch(value)) return value;
+    throw const FormatException(
+      'category_id must be null or a valid UUID string.',
     );
   }
 

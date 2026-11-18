@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../theme/palette.dart';
 import '../../algorithms/moga_engine.dart';
+import '../../models/itinerary_draft.dart';
 
 typedef _P = AppPalette;
 
@@ -15,6 +16,7 @@ class PlanResultsPage extends StatefulWidget {
   final RouteResult? dayResult;
   final ItineraryResult? itineraryResult;
   final DateTime tripStartDate;
+  final ItineraryDraft? draft;
 
   const PlanResultsPage({
     super.key,
@@ -22,6 +24,7 @@ class PlanResultsPage extends StatefulWidget {
     required this.tripStartDate,
     this.dayResult,
     this.itineraryResult,
+    this.draft,
   }) : assert(dayResult != null || itineraryResult != null, 'Provide either dayResult or itineraryResult');
 
   @override
@@ -93,6 +96,10 @@ class _PlanResultsPageState extends State<PlanResultsPage> with SingleTickerProv
                   _buildTopBar(context),
                   const SizedBox(height: 18),
                   _buildHeroSummary(),
+                  if (widget.draft != null) ...[
+                    const SizedBox(height: 12),
+                    _buildDraftStatus(widget.draft!),
+                  ],
                   if (_isDayResult && !widget.dayResult!.feasibility.isFeasible)
                     _buildFeasibilityNotice(
                       'This day exceeds the ${widget.dayResult!.feasibility.availableHours.toStringAsFixed(1)} hour limit by '
@@ -125,6 +132,31 @@ class _PlanResultsPageState extends State<PlanResultsPage> with SingleTickerProv
             ),
           ),
         ),
+      ),
+    );
+  }
+
+  Widget _buildDraftStatus(ItineraryDraft draft) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: _P.iceBlue),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            'Manual selection · Not saved',
+            style: TextStyle(fontWeight: FontWeight.w700),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            '${draft.stops.where((stop) => stop.isIncluded).length} selected destination(s)',
+          ),
+        ],
       ),
     );
   }

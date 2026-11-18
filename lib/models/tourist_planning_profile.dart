@@ -112,9 +112,11 @@ class TouristPlanningProfile {
         errors['preferred_categories'] =
             'Categories must not contain duplicates.';
       }
-      if (categories.any(
-        (value) => !policy.validCategoryCodes.contains(value),
-      )) {
+      if (categories.isNotEmpty &&
+          (policy.validCategoryCodes.isEmpty ||
+              categories.any(
+                (value) => !policy.validCategoryCodes.contains(value),
+              ))) {
         errors['preferred_categories'] =
             'Every category must match the approved category catalog.';
       }
@@ -221,10 +223,8 @@ class TouristPlanningProfileValidationPolicy {
     if (maximumHoursPerDay <= 0 || maximumTripDays <= 0) {
       throw ArgumentError('Validation maxima must be positive.');
     }
-    if (this.validCategoryCodes.isEmpty || this.supportedTravelModes.isEmpty) {
-      throw ArgumentError(
-        'Approved category codes and travel modes must be supplied.',
-      );
+    if (this.supportedTravelModes.isEmpty) {
+      throw ArgumentError('Approved travel modes must be supplied.');
     }
   }
 }

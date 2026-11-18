@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../theme/palette.dart';
 import 'history_page.dart';
+import 'planning_preferences_page.dart';
 
 typedef _P = AppPalette;
 
@@ -41,13 +42,15 @@ class _ProfilePageState extends State<ProfilePage> {
 
   // ── Real connected-account status, derived from Supabase identities ──
   bool get _isGoogleConnected =>
-      _supabase.auth.currentUser?.identities
-          ?.any((i) => i.provider == 'google') ??
+      _supabase.auth.currentUser?.identities?.any(
+        (i) => i.provider == 'google',
+      ) ??
       false;
 
   bool get _isFacebookConnected =>
-      _supabase.auth.currentUser?.identities
-          ?.any((i) => i.provider == 'facebook') ??
+      _supabase.auth.currentUser?.identities?.any(
+        (i) => i.provider == 'facebook',
+      ) ??
       false;
 
   @override
@@ -56,7 +59,8 @@ class _ProfilePageState extends State<ProfilePage> {
     _loadProfile();
     // Listen for auth state changes (e.g. returning from social link OAuth browser flow)
     _authSubscription = _supabase.auth.onAuthStateChange.listen((data) async {
-      if (data.event == AuthChangeEvent.signedIn || data.event == AuthChangeEvent.userUpdated) {
+      if (data.event == AuthChangeEvent.signedIn ||
+          data.event == AuthChangeEvent.userUpdated) {
         // Refresh user details to update identity list
         await _supabase.auth.getUser();
       }
@@ -99,7 +103,8 @@ class _ProfilePageState extends State<ProfilePage> {
 
       if (data != null && mounted) {
         setState(() {
-          _nameCtrl.text = data['display_name'] ?? user.email?.split('@').first ?? '';
+          _nameCtrl.text =
+              data['display_name'] ?? user.email?.split('@').first ?? '';
           _usernameCtrl.text = data['username'] ?? '';
           String phone = data['phone'] ?? '';
           if (phone.startsWith('+63')) {
@@ -111,7 +116,8 @@ class _ProfilePageState extends State<ProfilePage> {
       } else {
         // Fallback: use auth metadata
         final meta = user.userMetadata;
-        _nameCtrl.text = meta?['display_name'] ?? user.email?.split('@').first ?? '';
+        _nameCtrl.text =
+            meta?['display_name'] ?? user.email?.split('@').first ?? '';
       }
     } catch (e) {
       _showSnack('Could not load profile: $e', isError: true);
@@ -171,7 +177,9 @@ class _ProfilePageState extends State<ProfilePage> {
         'id': user.id,
         'display_name': _nameCtrl.text.trim(),
         'username': _usernameCtrl.text.trim(),
-        'phone': _phoneCtrl.text.trim().isEmpty ? null : '+63${_phoneCtrl.text.trim()}',
+        'phone': _phoneCtrl.text.trim().isEmpty
+            ? null
+            : '+63${_phoneCtrl.text.trim()}',
         'email': _emailCtrl.text.trim(),
       });
 
@@ -203,7 +211,13 @@ class _ProfilePageState extends State<ProfilePage> {
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: Text(msg, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w600)),
+        content: Text(
+          msg,
+          style: const TextStyle(
+            color: Colors.white,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
         backgroundColor: isError ? Colors.red.shade600 : _P.deepNavy,
         behavior: SnackBarBehavior.floating,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
@@ -225,7 +239,9 @@ class _ProfilePageState extends State<ProfilePage> {
         final userResponse = await _supabase.auth.getUser();
         final user = userResponse.user;
         if (user == null) return;
-        final identity = user.identities?.firstWhere((i) => i.provider == provider);
+        final identity = user.identities?.firstWhere(
+          (i) => i.provider == provider,
+        );
         if (identity != null) {
           await _supabase.auth.unlinkIdentity(identity);
           // Reload user to update identities list
@@ -268,11 +284,14 @@ class _ProfilePageState extends State<ProfilePage> {
       if (user == null) return;
       await _supabase
           .from('profiles')
-          .update({'mfa_email_enabled': value}).eq('id', user.id);
+          .update({'mfa_email_enabled': value})
+          .eq('id', user.id);
       if (mounted) setState(() => _is2FAEnabled = value);
-      _showSnack(value
-          ? 'Two-factor authentication enabled.'
-          : 'Two-factor authentication disabled.');
+      _showSnack(
+        value
+            ? 'Two-factor authentication enabled.'
+            : 'Two-factor authentication disabled.',
+      );
     } catch (e) {
       _showSnack('Could not update 2FA setting: $e', isError: true);
     }
@@ -328,20 +347,36 @@ class _ProfilePageState extends State<ProfilePage> {
         return Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Container(width: 40, height: 4, decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(50))),
+            Container(
+              width: 40,
+              height: 4,
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(50),
+              ),
+            ),
             const SizedBox(height: 12),
             Container(
               decoration: const BoxDecoration(
                 color: Colors.white,
-                borderRadius: BorderRadius.only(topLeft: Radius.circular(28), topRight: Radius.circular(28)),
+                borderRadius: BorderRadius.only(
+                  topLeft: Radius.circular(28),
+                  topRight: Radius.circular(28),
+                ),
               ),
               padding: const EdgeInsets.fromLTRB(24, 24, 24, 32),
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Text('Select Language',
-                      style: TextStyle(color: _P.deepNavy, fontSize: 18, fontWeight: FontWeight.w800)),
+                  const Text(
+                    'Select Language',
+                    style: TextStyle(
+                      color: _P.deepNavy,
+                      fontSize: 18,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
                   const SizedBox(height: 16),
                   _languageOption('English', selected: true),
                   const SizedBox(height: 10),
@@ -367,9 +402,17 @@ class _ProfilePageState extends State<ProfilePage> {
         child: Row(
           children: [
             Expanded(
-              child: Text(label, style: const TextStyle(fontWeight: FontWeight.w700, color: _P.deepNavy, fontSize: 14.5)),
+              child: Text(
+                label,
+                style: const TextStyle(
+                  fontWeight: FontWeight.w700,
+                  color: _P.deepNavy,
+                  fontSize: 14.5,
+                ),
+              ),
             ),
-            if (selected) const Icon(Icons.check_circle_rounded, color: _P.blue, size: 20),
+            if (selected)
+              const Icon(Icons.check_circle_rounded, color: _P.blue, size: 20),
           ],
         ),
       ),
@@ -379,8 +422,10 @@ class _ProfilePageState extends State<ProfilePage> {
   void _requestLocation() {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: const Text('Requesting location permission...',
-            style: TextStyle(fontWeight: FontWeight.w600, color: Colors.white)),
+        content: const Text(
+          'Requesting location permission...',
+          style: TextStyle(fontWeight: FontWeight.w600, color: Colors.white),
+        ),
         backgroundColor: _P.deepNavy,
         behavior: SnackBarBehavior.floating,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
@@ -402,7 +447,12 @@ class _ProfilePageState extends State<ProfilePage> {
           // Header
           const Text(
             'My Profile',
-            style: TextStyle(fontSize: 26, fontWeight: FontWeight.w800, color: _P.deepNavy, letterSpacing: -0.5),
+            style: TextStyle(
+              fontSize: 26,
+              fontWeight: FontWeight.w800,
+              color: _P.deepNavy,
+              letterSpacing: -0.5,
+            ),
           ),
           const SizedBox(height: 24),
 
@@ -418,23 +468,37 @@ class _ProfilePageState extends State<ProfilePage> {
               ),
               borderRadius: BorderRadius.circular(28),
               boxShadow: [
-                BoxShadow(color: _P.deepNavy.withValues(alpha: 0.3), blurRadius: 20, offset: const Offset(0, 10)),
+                BoxShadow(
+                  color: _P.deepNavy.withValues(alpha: 0.3),
+                  blurRadius: 20,
+                  offset: const Offset(0, 10),
+                ),
               ],
             ),
             child: Stack(
               children: [
                 Positioned(
-                  top: -30, right: -30,
+                  top: -30,
+                  right: -30,
                   child: Container(
-                    width: 120, height: 120,
-                    decoration: BoxDecoration(shape: BoxShape.circle, color: Colors.white.withValues(alpha: 0.05)),
+                    width: 120,
+                    height: 120,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      color: Colors.white.withValues(alpha: 0.05),
+                    ),
                   ),
                 ),
                 Positioned(
-                  bottom: -24, left: -16,
+                  bottom: -24,
+                  left: -16,
                   child: Container(
-                    width: 80, height: 80,
-                    decoration: BoxDecoration(shape: BoxShape.circle, color: Colors.white.withValues(alpha: 0.04)),
+                    width: 80,
+                    height: 80,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      color: Colors.white.withValues(alpha: 0.04),
+                    ),
                   ),
                 ),
                 SizedBox(
@@ -445,16 +509,25 @@ class _ProfilePageState extends State<ProfilePage> {
                       Stack(
                         children: [
                           Container(
-                            width: 104, height: 104,
+                            width: 104,
+                            height: 104,
                             decoration: BoxDecoration(
                               shape: BoxShape.circle,
                               color: _P.iceBlue,
-                              border: Border.all(color: Colors.white.withValues(alpha: 0.85), width: 4),
+                              border: Border.all(
+                                color: Colors.white.withValues(alpha: 0.85),
+                                width: 4,
+                              ),
                             ),
-                            child: const Icon(Icons.person_rounded, size: 50, color: _P.skyBlue),
+                            child: const Icon(
+                              Icons.person_rounded,
+                              size: 50,
+                              color: _P.skyBlue,
+                            ),
                           ),
                           Positioned(
-                            bottom: 0, right: 0,
+                            bottom: 0,
+                            right: 0,
                             child: Container(
                               padding: const EdgeInsets.all(7),
                               decoration: BoxDecoration(
@@ -462,20 +535,35 @@ class _ProfilePageState extends State<ProfilePage> {
                                 shape: BoxShape.circle,
                                 border: Border.all(color: _P.navy, width: 2.5),
                               ),
-                              child: const Icon(Icons.camera_alt_rounded, size: 14, color: _P.deepNavy),
+                              child: const Icon(
+                                Icons.camera_alt_rounded,
+                                size: 14,
+                                color: _P.deepNavy,
+                              ),
                             ),
                           ),
                         ],
                       ),
                       const SizedBox(height: 18),
                       Text(
-                        _nameCtrl.text.isNotEmpty ? _nameCtrl.text : 'Loading...',
-                        style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w800, color: Colors.white, letterSpacing: -0.2),
+                        _nameCtrl.text.isNotEmpty
+                            ? _nameCtrl.text
+                            : 'Loading...',
+                        style: const TextStyle(
+                          fontSize: 20,
+                          fontWeight: FontWeight.w800,
+                          color: Colors.white,
+                          letterSpacing: -0.2,
+                        ),
                       ),
                       const SizedBox(height: 4),
                       Text(
                         _emailCtrl.text.isNotEmpty ? _emailCtrl.text : '',
-                        style: TextStyle(fontSize: 13.5, color: Colors.white.withValues(alpha: 0.6), fontWeight: FontWeight.w500),
+                        style: TextStyle(
+                          fontSize: 13.5,
+                          color: Colors.white.withValues(alpha: 0.6),
+                          fontWeight: FontWeight.w500,
+                        ),
                       ),
                       const SizedBox(height: 24),
                       _HoverButton(
@@ -497,33 +585,71 @@ class _ProfilePageState extends State<ProfilePage> {
           _buildSectionHeader('My Activity'),
           const SizedBox(height: 12),
           GestureDetector(
-            onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const HistoryPage())),
+            onTap: () => Navigator.push(
+              context,
+              MaterialPageRoute(builder: (_) => const HistoryPage()),
+            ),
             child: Container(
               padding: const EdgeInsets.all(18),
               decoration: BoxDecoration(
-                gradient: const LinearGradient(colors: [_P.navy, _P.deepNavy], begin: Alignment.topLeft, end: Alignment.bottomRight),
+                gradient: const LinearGradient(
+                  colors: [_P.navy, _P.deepNavy],
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                ),
                 borderRadius: BorderRadius.circular(20),
-                boxShadow: [BoxShadow(color: _P.deepNavy.withValues(alpha: 0.25), blurRadius: 16, offset: const Offset(0, 8))],
+                boxShadow: [
+                  BoxShadow(
+                    color: _P.deepNavy.withValues(alpha: 0.25),
+                    blurRadius: 16,
+                    offset: const Offset(0, 8),
+                  ),
+                ],
               ),
               child: Row(
                 children: [
                   Container(
                     padding: const EdgeInsets.all(10),
-                    decoration: BoxDecoration(color: Colors.white.withValues(alpha: 0.15), borderRadius: BorderRadius.circular(14)),
-                    child: const Icon(Icons.history_rounded, color: Colors.white, size: 22),
+                    decoration: BoxDecoration(
+                      color: Colors.white.withValues(alpha: 0.15),
+                      borderRadius: BorderRadius.circular(14),
+                    ),
+                    child: const Icon(
+                      Icons.history_rounded,
+                      color: Colors.white,
+                      size: 22,
+                    ),
                   ),
                   const SizedBox(width: 14),
                   const Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text('My Route History', style: TextStyle(color: Colors.white, fontSize: 15, fontWeight: FontWeight.w800)),
+                        Text(
+                          'My Route History',
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontSize: 15,
+                            fontWeight: FontWeight.w800,
+                          ),
+                        ),
                         SizedBox(height: 3),
-                        Text('View past itineraries & day tours', style: TextStyle(color: Colors.white70, fontSize: 12, fontWeight: FontWeight.w500)),
+                        Text(
+                          'View past itineraries & day tours',
+                          style: TextStyle(
+                            color: Colors.white70,
+                            fontSize: 12,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
                       ],
                     ),
                   ),
-                  const Icon(Icons.arrow_forward_ios_rounded, color: Colors.white70, size: 16),
+                  const Icon(
+                    Icons.arrow_forward_ios_rounded,
+                    color: Colors.white70,
+                    size: 16,
+                  ),
                 ],
               ),
             ),
@@ -534,16 +660,38 @@ class _ProfilePageState extends State<ProfilePage> {
           _buildSectionHeader('Preferences'),
           const SizedBox(height: 12),
           _menuCard([
-            _HoverMenuItem(title: 'Language', icon: Icons.language_rounded, onTap: _showLanguageSelector),
-            _HoverMenuItem(title: 'Location', icon: Icons.location_on_outlined, onTap: _requestLocation),
-            _HoverMenuItem(title: 'Subscription', icon: Icons.credit_card_rounded),
+            _HoverMenuItem(
+              title: 'Planning preferences',
+              icon: Icons.tune_rounded,
+              onTap: () => Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => PlanningPreferencesPage()),
+              ),
+            ),
+            _HoverMenuItem(
+              title: 'Language',
+              icon: Icons.language_rounded,
+              onTap: _showLanguageSelector,
+            ),
+            _HoverMenuItem(
+              title: 'Location',
+              icon: Icons.location_on_outlined,
+              onTap: _requestLocation,
+            ),
+            _HoverMenuItem(
+              title: 'Subscription',
+              icon: Icons.credit_card_rounded,
+            ),
           ]),
           const SizedBox(height: 24),
 
           _buildSectionHeader('Data'),
           const SizedBox(height: 12),
           _menuCard([
-            _HoverMenuItem(title: 'Clear cache', icon: Icons.delete_outline_rounded),
+            _HoverMenuItem(
+              title: 'Clear cache',
+              icon: Icons.delete_outline_rounded,
+            ),
             _HoverMenuItem(title: 'Clear history', icon: Icons.history_rounded),
           ]),
           const SizedBox(height: 30),
@@ -588,13 +736,30 @@ class _ProfilePageState extends State<ProfilePage> {
                   decoration: BoxDecoration(
                     color: Colors.white,
                     shape: BoxShape.circle,
-                    boxShadow: [BoxShadow(color: _P.deepNavy.withValues(alpha: 0.06), blurRadius: 12, offset: const Offset(0, 4))],
+                    boxShadow: [
+                      BoxShadow(
+                        color: _P.deepNavy.withValues(alpha: 0.06),
+                        blurRadius: 12,
+                        offset: const Offset(0, 4),
+                      ),
+                    ],
                   ),
-                  child: const Icon(Icons.arrow_back_rounded, color: _P.deepNavy, size: 20),
+                  child: const Icon(
+                    Icons.arrow_back_rounded,
+                    color: _P.deepNavy,
+                    size: 20,
+                  ),
                 ),
               ),
-              const Text('Edit Profile',
-                  style: TextStyle(fontSize: 20, fontWeight: FontWeight.w800, color: _P.deepNavy, letterSpacing: -0.3)),
+              const Text(
+                'Edit Profile',
+                style: TextStyle(
+                  fontSize: 20,
+                  fontWeight: FontWeight.w800,
+                  color: _P.deepNavy,
+                  letterSpacing: -0.3,
+                ),
+              ),
               GestureDetector(
                 onTap: _isSaving ? null : _saveProfile,
                 child: Container(
@@ -602,11 +767,28 @@ class _ProfilePageState extends State<ProfilePage> {
                   decoration: BoxDecoration(
                     color: _isSaving ? Colors.grey : _P.navy,
                     shape: BoxShape.circle,
-                    boxShadow: [BoxShadow(color: _P.deepNavy.withValues(alpha: 0.15), blurRadius: 12, offset: const Offset(0, 4))],
+                    boxShadow: [
+                      BoxShadow(
+                        color: _P.deepNavy.withValues(alpha: 0.15),
+                        blurRadius: 12,
+                        offset: const Offset(0, 4),
+                      ),
+                    ],
                   ),
                   child: _isSaving
-                      ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
-                      : const Icon(Icons.check_rounded, color: Colors.white, size: 20),
+                      ? const SizedBox(
+                          width: 20,
+                          height: 20,
+                          child: CircularProgressIndicator(
+                            color: Colors.white,
+                            strokeWidth: 2,
+                          ),
+                        )
+                      : const Icon(
+                          Icons.check_rounded,
+                          color: Colors.white,
+                          size: 20,
+                        ),
                 ),
               ),
             ],
@@ -618,21 +800,41 @@ class _ProfilePageState extends State<ProfilePage> {
             child: Stack(
               children: [
                 Container(
-                  width: 100, height: 100,
+                  width: 100,
+                  height: 100,
                   decoration: BoxDecoration(
                     shape: BoxShape.circle,
                     color: _P.iceBlue,
                     border: Border.all(color: Colors.white, width: 4),
-                    boxShadow: [BoxShadow(color: _P.deepNavy.withValues(alpha: 0.08), blurRadius: 16, offset: const Offset(0, 8))],
+                    boxShadow: [
+                      BoxShadow(
+                        color: _P.deepNavy.withValues(alpha: 0.08),
+                        blurRadius: 16,
+                        offset: const Offset(0, 8),
+                      ),
+                    ],
                   ),
-                  child: const Icon(Icons.person_rounded, size: 50, color: _P.skyBlue),
+                  child: const Icon(
+                    Icons.person_rounded,
+                    size: 50,
+                    color: _P.skyBlue,
+                  ),
                 ),
                 Positioned(
-                  bottom: 0, right: 0,
+                  bottom: 0,
+                  right: 0,
                   child: Container(
                     padding: const EdgeInsets.all(7),
-                    decoration: BoxDecoration(color: _P.blue, shape: BoxShape.circle, border: Border.all(color: Colors.white, width: 2.5)),
-                    child: const Icon(Icons.camera_alt_rounded, size: 15, color: Colors.white),
+                    decoration: BoxDecoration(
+                      color: _P.blue,
+                      shape: BoxShape.circle,
+                      border: Border.all(color: Colors.white, width: 2.5),
+                    ),
+                    child: const Icon(
+                      Icons.camera_alt_rounded,
+                      size: 15,
+                      color: Colors.white,
+                    ),
                   ),
                 ),
               ],
@@ -647,7 +849,11 @@ class _ProfilePageState extends State<ProfilePage> {
           const SizedBox(height: 14),
           _buildEditField('Email address', _emailCtrl, Icons.email_rounded),
           const SizedBox(height: 14),
-          _buildEditField('Username', _usernameCtrl, Icons.alternate_email_rounded),
+          _buildEditField(
+            'Username',
+            _usernameCtrl,
+            Icons.alternate_email_rounded,
+          ),
           const SizedBox(height: 14),
           _buildPhoneField(),
           const SizedBox(height: 28),
@@ -657,7 +863,10 @@ class _ProfilePageState extends State<ProfilePage> {
           const SizedBox(height: 8),
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-            decoration: BoxDecoration(color: _P.iceBlue, borderRadius: BorderRadius.circular(14)),
+            decoration: BoxDecoration(
+              color: _P.iceBlue,
+              borderRadius: BorderRadius.circular(14),
+            ),
             child: const Row(
               children: [
                 Icon(Icons.info_outline_rounded, color: _P.blue, size: 16),
@@ -665,21 +874,37 @@ class _ProfilePageState extends State<ProfilePage> {
                 Expanded(
                   child: Text(
                     'Leave password fields empty to keep your current password.',
-                    style: TextStyle(color: _P.blue, fontSize: 12, fontWeight: FontWeight.w500),
+                    style: TextStyle(
+                      color: _P.blue,
+                      fontSize: 12,
+                      fontWeight: FontWeight.w500,
+                    ),
                   ),
                 ),
               ],
             ),
           ),
           const SizedBox(height: 14),
-          _buildPasswordField('Old Password', _oldPasswordCtrl, _obscureOldPassword,
-              (val) => setState(() => _obscureOldPassword = val)),
+          _buildPasswordField(
+            'Old Password',
+            _oldPasswordCtrl,
+            _obscureOldPassword,
+            (val) => setState(() => _obscureOldPassword = val),
+          ),
           const SizedBox(height: 14),
-          _buildPasswordField('New Password', _newPasswordCtrl, _obscureNewPassword,
-              (val) => setState(() => _obscureNewPassword = val)),
+          _buildPasswordField(
+            'New Password',
+            _newPasswordCtrl,
+            _obscureNewPassword,
+            (val) => setState(() => _obscureNewPassword = val),
+          ),
           const SizedBox(height: 14),
-          _buildPasswordField('Confirm Password', _confirmPasswordCtrl, _obscureConfirmPassword,
-              (val) => setState(() => _obscureConfirmPassword = val)),
+          _buildPasswordField(
+            'Confirm Password',
+            _confirmPasswordCtrl,
+            _obscureConfirmPassword,
+            (val) => setState(() => _obscureConfirmPassword = val),
+          ),
           const SizedBox(height: 16),
 
           _buildToggleCard(
@@ -694,11 +919,19 @@ class _ProfilePageState extends State<ProfilePage> {
           // ── Connected Accounts ───────────────────────────────────
           _buildSectionHeader('Connected Accounts'),
           const SizedBox(height: 14),
-          _buildSocialToggle('Google', Icons.g_mobiledata_rounded, _isGoogleConnected,
-              (val) => _toggleSocial('google', val)),
+          _buildSocialToggle(
+            'Google',
+            Icons.g_mobiledata_rounded,
+            _isGoogleConnected,
+            (val) => _toggleSocial('google', val),
+          ),
           const SizedBox(height: 12),
-          _buildSocialToggle('Facebook', Icons.facebook_rounded, _isFacebookConnected,
-              (val) => _toggleSocial('facebook', val)),
+          _buildSocialToggle(
+            'Facebook',
+            Icons.facebook_rounded,
+            _isFacebookConnected,
+            (val) => _toggleSocial('facebook', val),
+          ),
         ],
       ),
     );
@@ -708,8 +941,15 @@ class _ProfilePageState extends State<ProfilePage> {
   //  SHARED PIECES
   // ═══════════════════════════════════════════════════════════════════
   Widget _buildSectionHeader(String title) {
-    return Text(title,
-        style: const TextStyle(color: _P.deepNavy, fontSize: 18, fontWeight: FontWeight.w800, letterSpacing: -0.2));
+    return Text(
+      title,
+      style: const TextStyle(
+        color: _P.deepNavy,
+        fontSize: 18,
+        fontWeight: FontWeight.w800,
+        letterSpacing: -0.2,
+      ),
+    );
   }
 
   Widget _menuCard(List<Widget> children) {
@@ -718,32 +958,65 @@ class _ProfilePageState extends State<ProfilePage> {
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(22),
-        boxShadow: [BoxShadow(color: _P.deepNavy.withValues(alpha: 0.04), blurRadius: 12, offset: const Offset(0, 4))],
+        boxShadow: [
+          BoxShadow(
+            color: _P.deepNavy.withValues(alpha: 0.04),
+            blurRadius: 12,
+            offset: const Offset(0, 4),
+          ),
+        ],
       ),
       child: Column(children: children),
     );
   }
 
-  Widget _buildEditField(String label, TextEditingController controller, IconData icon) {
+  Widget _buildEditField(
+    String label,
+    TextEditingController controller,
+    IconData icon,
+  ) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(label, style: const TextStyle(color: _P.inkSoft, fontSize: 13, fontWeight: FontWeight.w600)),
+        Text(
+          label,
+          style: const TextStyle(
+            color: _P.inkSoft,
+            fontSize: 13,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
         const SizedBox(height: 6),
         Container(
           decoration: BoxDecoration(
             color: Colors.white,
             borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: _P.blue.withValues(alpha: 0.18), width: 1.5),
-            boxShadow: [BoxShadow(color: _P.deepNavy.withValues(alpha: 0.03), blurRadius: 10, offset: const Offset(0, 4))],
+            border: Border.all(
+              color: _P.blue.withValues(alpha: 0.18),
+              width: 1.5,
+            ),
+            boxShadow: [
+              BoxShadow(
+                color: _P.deepNavy.withValues(alpha: 0.03),
+                blurRadius: 10,
+                offset: const Offset(0, 4),
+              ),
+            ],
           ),
           child: TextField(
             controller: controller,
-            style: const TextStyle(fontSize: 15, color: _P.deepNavy, fontWeight: FontWeight.w600),
+            style: const TextStyle(
+              fontSize: 15,
+              color: _P.deepNavy,
+              fontWeight: FontWeight.w600,
+            ),
             decoration: InputDecoration(
               prefixIcon: Icon(icon, color: _P.blue, size: 20),
               border: InputBorder.none,
-              contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+              contentPadding: const EdgeInsets.symmetric(
+                horizontal: 16,
+                vertical: 14,
+              ),
             ),
           ),
         ),
@@ -752,31 +1025,64 @@ class _ProfilePageState extends State<ProfilePage> {
   }
 
   Widget _buildPasswordField(
-      String label, TextEditingController controller, bool isObscured, Function(bool) onToggle) {
+    String label,
+    TextEditingController controller,
+    bool isObscured,
+    Function(bool) onToggle,
+  ) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(label, style: const TextStyle(color: _P.inkSoft, fontSize: 13, fontWeight: FontWeight.w600)),
+        Text(
+          label,
+          style: const TextStyle(
+            color: _P.inkSoft,
+            fontSize: 13,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
         const SizedBox(height: 6),
         Container(
           decoration: BoxDecoration(
             color: Colors.white,
             borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: _P.blue.withValues(alpha: 0.18), width: 1.5),
-            boxShadow: [BoxShadow(color: _P.deepNavy.withValues(alpha: 0.03), blurRadius: 10, offset: const Offset(0, 4))],
+            border: Border.all(
+              color: _P.blue.withValues(alpha: 0.18),
+              width: 1.5,
+            ),
+            boxShadow: [
+              BoxShadow(
+                color: _P.deepNavy.withValues(alpha: 0.03),
+                blurRadius: 10,
+                offset: const Offset(0, 4),
+              ),
+            ],
           ),
           child: TextField(
             controller: controller,
             obscureText: isObscured,
-            style: const TextStyle(fontSize: 15, color: _P.deepNavy, fontWeight: FontWeight.w600),
+            style: const TextStyle(
+              fontSize: 15,
+              color: _P.deepNavy,
+              fontWeight: FontWeight.w600,
+            ),
             decoration: InputDecoration(
-              prefixIcon: const Icon(Icons.lock_rounded, color: _P.blue, size: 20),
+              prefixIcon: const Icon(
+                Icons.lock_rounded,
+                color: _P.blue,
+                size: 20,
+              ),
               border: InputBorder.none,
-              contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+              contentPadding: const EdgeInsets.symmetric(
+                horizontal: 16,
+                vertical: 14,
+              ),
               suffixIcon: GestureDetector(
                 onTap: () => onToggle(!isObscured),
                 child: Icon(
-                  isObscured ? Icons.visibility_off_rounded : Icons.visibility_rounded,
+                  isObscured
+                      ? Icons.visibility_off_rounded
+                      : Icons.visibility_rounded,
                   color: _P.inkSoft,
                   size: 20,
                 ),
@@ -792,14 +1098,30 @@ class _ProfilePageState extends State<ProfilePage> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const Text('Phone number', style: TextStyle(color: _P.inkSoft, fontSize: 13, fontWeight: FontWeight.w600)),
+        const Text(
+          'Phone number',
+          style: TextStyle(
+            color: _P.inkSoft,
+            fontSize: 13,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
         const SizedBox(height: 6),
         Container(
           decoration: BoxDecoration(
             color: Colors.white,
             borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: _P.blue.withValues(alpha: 0.18), width: 1.5),
-            boxShadow: [BoxShadow(color: _P.deepNavy.withValues(alpha: 0.03), blurRadius: 10, offset: const Offset(0, 4))],
+            border: Border.all(
+              color: _P.blue.withValues(alpha: 0.18),
+              width: 1.5,
+            ),
+            boxShadow: [
+              BoxShadow(
+                color: _P.deepNavy.withValues(alpha: 0.03),
+                blurRadius: 10,
+                offset: const Offset(0, 4),
+              ),
+            ],
           ),
           child: Row(
             children: [
@@ -809,8 +1131,18 @@ class _ProfilePageState extends State<ProfilePage> {
                   children: [
                     const Icon(Icons.phone_rounded, color: _P.blue, size: 20),
                     const SizedBox(width: 8),
-                    const Text('+63', style: TextStyle(color: _P.deepNavy, fontSize: 15, fontWeight: FontWeight.w600)),
-                    const Icon(Icons.arrow_drop_down_rounded, color: _P.inkSoft),
+                    const Text(
+                      '+63',
+                      style: TextStyle(
+                        color: _P.deepNavy,
+                        fontSize: 15,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    const Icon(
+                      Icons.arrow_drop_down_rounded,
+                      color: _P.inkSoft,
+                    ),
                   ],
                 ),
               ),
@@ -820,7 +1152,11 @@ class _ProfilePageState extends State<ProfilePage> {
                 child: TextField(
                   controller: _phoneCtrl,
                   keyboardType: TextInputType.phone,
-                  style: const TextStyle(fontSize: 15, color: _P.deepNavy, fontWeight: FontWeight.w600),
+                  style: const TextStyle(
+                    fontSize: 15,
+                    color: _P.deepNavy,
+                    fontWeight: FontWeight.w600,
+                  ),
                   decoration: const InputDecoration(
                     border: InputBorder.none,
                     contentPadding: EdgeInsets.symmetric(vertical: 14),
@@ -834,19 +1170,34 @@ class _ProfilePageState extends State<ProfilePage> {
     );
   }
 
-  Widget _buildToggleCard(String title, String subtitle, IconData icon, bool value, Function(bool) onChanged) {
+  Widget _buildToggleCard(
+    String title,
+    String subtitle,
+    IconData icon,
+    bool value,
+    Function(bool) onChanged,
+  ) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(20),
-        boxShadow: [BoxShadow(color: _P.deepNavy.withValues(alpha: 0.04), blurRadius: 12, offset: const Offset(0, 4))],
+        boxShadow: [
+          BoxShadow(
+            color: _P.deepNavy.withValues(alpha: 0.04),
+            blurRadius: 12,
+            offset: const Offset(0, 4),
+          ),
+        ],
       ),
       child: Row(
         children: [
           Container(
             padding: const EdgeInsets.all(10),
-            decoration: BoxDecoration(color: _P.iceBlue, borderRadius: BorderRadius.circular(14)),
+            decoration: BoxDecoration(
+              color: _P.iceBlue,
+              borderRadius: BorderRadius.circular(14),
+            ),
             child: Icon(icon, color: _P.blue, size: 22),
           ),
           const SizedBox(width: 14),
@@ -854,9 +1205,23 @@ class _ProfilePageState extends State<ProfilePage> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(title, style: const TextStyle(color: _P.deepNavy, fontSize: 15, fontWeight: FontWeight.w700)),
+                Text(
+                  title,
+                  style: const TextStyle(
+                    color: _P.deepNavy,
+                    fontSize: 15,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
                 const SizedBox(height: 2),
-                Text(subtitle, style: const TextStyle(color: _P.inkSoft, fontSize: 12, fontWeight: FontWeight.w500)),
+                Text(
+                  subtitle,
+                  style: const TextStyle(
+                    color: _P.inkSoft,
+                    fontSize: 12,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
               ],
             ),
           ),
@@ -873,19 +1238,33 @@ class _ProfilePageState extends State<ProfilePage> {
   }
 
   // ── Aligned label/status row for Google & Facebook ──────────────────
-  Widget _buildSocialToggle(String title, IconData icon, bool isConnected, Function(bool) onToggle) {
+  Widget _buildSocialToggle(
+    String title,
+    IconData icon,
+    bool isConnected,
+    Function(bool) onToggle,
+  ) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(20),
-        boxShadow: [BoxShadow(color: _P.deepNavy.withValues(alpha: 0.04), blurRadius: 12, offset: const Offset(0, 4))],
+        boxShadow: [
+          BoxShadow(
+            color: _P.deepNavy.withValues(alpha: 0.04),
+            blurRadius: 12,
+            offset: const Offset(0, 4),
+          ),
+        ],
       ),
       child: Row(
         children: [
           Container(
             padding: const EdgeInsets.all(10),
-            decoration: BoxDecoration(color: _P.iceBlue, borderRadius: BorderRadius.circular(14)),
+            decoration: BoxDecoration(
+              color: _P.iceBlue,
+              borderRadius: BorderRadius.circular(14),
+            ),
             child: Icon(icon, color: _P.blue, size: 22),
           ),
           const SizedBox(width: 14),
@@ -893,7 +1272,14 @@ class _ProfilePageState extends State<ProfilePage> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(title, style: const TextStyle(fontWeight: FontWeight.w700, color: _P.deepNavy, fontSize: 15)),
+                Text(
+                  title,
+                  style: const TextStyle(
+                    fontWeight: FontWeight.w700,
+                    color: _P.deepNavy,
+                    fontSize: 15,
+                  ),
+                ),
                 const SizedBox(height: 2),
                 Text(
                   isConnected ? 'Connected' : 'Not connected',
@@ -940,7 +1326,13 @@ class _ProfilePageState extends State<ProfilePage> {
             children: [
               CircularProgressIndicator(color: _P.blue, strokeWidth: 2.5),
               SizedBox(height: 16),
-              Text('Loading profile...', style: TextStyle(color: _P.inkSoft, fontWeight: FontWeight.w600)),
+              Text(
+                'Loading profile...',
+                style: TextStyle(
+                  color: _P.inkSoft,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
             ],
           ),
         ),
@@ -956,7 +1348,13 @@ class _ProfilePageState extends State<ProfilePage> {
             children: [
               CircularProgressIndicator(color: _P.blue, strokeWidth: 2.5),
               SizedBox(height: 16),
-              Text('Logging out...', style: TextStyle(color: _P.inkSoft, fontWeight: FontWeight.w600)),
+              Text(
+                'Logging out...',
+                style: TextStyle(
+                  color: _P.inkSoft,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
             ],
           ),
         ),
@@ -1026,9 +1424,17 @@ class _HoverButtonState extends State<_HoverButton> {
           decoration: BoxDecoration(
             color: _isHovered ? widget.hoverColor : widget.defaultColor,
             borderRadius: BorderRadius.circular(50),
-            border: widget.borderColor != null ? Border.all(color: widget.borderColor!, width: 1.5) : null,
+            border: widget.borderColor != null
+                ? Border.all(color: widget.borderColor!, width: 1.5)
+                : null,
             boxShadow: _isHovered && widget.defaultColor != Colors.transparent
-                ? [BoxShadow(color: widget.hoverColor.withValues(alpha: 0.4), blurRadius: 12, offset: const Offset(0, 4))]
+                ? [
+                    BoxShadow(
+                      color: widget.hoverColor.withValues(alpha: 0.4),
+                      blurRadius: 12,
+                      offset: const Offset(0, 4),
+                    ),
+                  ]
                 : [],
           ),
           child: Row(
@@ -1036,7 +1442,11 @@ class _HoverButtonState extends State<_HoverButton> {
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
               if (widget.icon != null) ...[
-                Icon(widget.icon, color: _isHovered ? widget.hoverTextColor : widget.textColor, size: 18),
+                Icon(
+                  widget.icon,
+                  color: _isHovered ? widget.hoverTextColor : widget.textColor,
+                  size: 18,
+                ),
                 const SizedBox(width: 8),
               ],
               Text(
@@ -1083,7 +1493,9 @@ class _HoverMenuItemState extends State<_HoverMenuItem> {
           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 14),
           margin: const EdgeInsets.symmetric(vertical: 2),
           decoration: BoxDecoration(
-            color: _isHovered ? _P.iceBlue.withValues(alpha: 0.5) : Colors.transparent,
+            color: _isHovered
+                ? _P.iceBlue.withValues(alpha: 0.5)
+                : Colors.transparent,
             borderRadius: BorderRadius.circular(16),
           ),
           child: Row(
@@ -1098,10 +1510,20 @@ class _HoverMenuItemState extends State<_HoverMenuItem> {
               ),
               const SizedBox(width: 14),
               Expanded(
-                child: Text(widget.title,
-                    style: const TextStyle(color: _P.deepNavy, fontSize: 15, fontWeight: FontWeight.w700)),
+                child: Text(
+                  widget.title,
+                  style: const TextStyle(
+                    color: _P.deepNavy,
+                    fontSize: 15,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
               ),
-              Icon(Icons.chevron_right_rounded, color: _isHovered ? _P.blue : _P.inkSoft.withValues(alpha: 0.5), size: 22),
+              Icon(
+                Icons.chevron_right_rounded,
+                color: _isHovered ? _P.blue : _P.inkSoft.withValues(alpha: 0.5),
+                size: 22,
+              ),
             ],
           ),
         ),

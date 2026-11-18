@@ -22,6 +22,7 @@ class CarsRawContext {
   final DateTime? publicRatingRetrievedAt;
   final DateTime? publicRatingFreshUntil;
   final double? touristBudget;
+
   /// Price provenance is retained; unverified amounts are not scoring inputs.
   final PriceInfo? estimatedDestinationCost;
   final double? routeDistanceKm;
