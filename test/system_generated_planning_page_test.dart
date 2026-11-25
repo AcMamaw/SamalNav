@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:samal_nav/algorithms/cars_assessment_input_preparer.dart';
 import 'package:samal_nav/models/cars_models.dart';
 import 'package:samal_nav/models/destination_record.dart';
 import 'package:samal_nav/models/itinerary_draft.dart';
@@ -73,14 +74,37 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    expect(provider.calls, 0, reason: 'CARS waits for explicit tourist action.');
-    expect(find.textContaining('No category preference selected.'), findsOneWidget);
+    expect(
+      provider.calls,
+      0,
+      reason: 'CARS waits for explicit tourist action.',
+    );
+    expect(
+      find.textContaining('No category preference selected.'),
+      findsOneWidget,
+    );
     await tester.tap(find.byKey(const Key('generate_cars_recommendations')));
     await tester.pumpAndSettle();
 
     expect(find.byType(CarsRecommendationReviewPage), findsOneWidget);
     expect(find.textContaining('Starting point:'), findsOneWidget);
     expect(find.textContaining('CARS score 66.67'), findsOneWidget);
+    final evidenceFinder = find.byKey(
+      const Key('cars_evidence_$_destinationId'),
+    );
+    await tester.drag(find.byType(ListView).last, const Offset(0, -500));
+    await tester.pumpAndSettle();
+    await tester.tap(evidenceFinder);
+    await tester.pumpAndSettle();
+    final forecastEvidenceFinder = find.textContaining(
+      'Synthetic forecast evidence prepared for provider handoff.',
+    );
+    expect(forecastEvidenceFinder, findsOneWidget);
+    expect(
+      find.textContaining('Weather suitability · available'),
+      findsOneWidget,
+    );
+    expect(find.textContaining('Scoring rule: test-rule-v1'), findsOneWidget);
     expect(
       find.byKey(const Key('cars_select_$_destinationId')),
       findsOneWidget,
@@ -158,10 +182,7 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('Saved preferences are unconfirmed'), findsOneWidget);
-    expect(
-      find.textContaining('will not be sent to CARS'),
-      findsOneWidget,
-    );
+    expect(find.textContaining('will not be sent to CARS'), findsOneWidget);
     expect(provider.calls, 0);
     await tester.tap(find.byKey(const Key('generate_cars_recommendations')));
     await tester.pumpAndSettle();
@@ -170,91 +191,116 @@ void main() {
     expect(provider.calls, 1);
   });
 
-  testWidgets('explicitly confirmed profile fills only absent supported fields', (
-    tester,
-  ) async {
-    final trip = _tripWithOptionalPreferencesMissing();
-    TripConfiguration? received;
-    final provider = _Provider((value) async {
-      received = value;
-      return _package(empty: true);
-    });
-    await tester.pumpWidget(
-      MaterialApp(
-        home: SystemGeneratedPlanningPage(
-          trip: trip,
-          provider: provider,
-          profileService: _ProfileService(
-            _profileSnapshot(categories: ['unverified-id'], confirmed: true),
+  testWidgets(
+    'explicitly confirmed profile fills only absent supported fields',
+    (tester) async {
+      final trip = _tripWithOptionalPreferencesMissing();
+      TripConfiguration? received;
+      final provider = _Provider((value) async {
+        received = value;
+        return _package(empty: true);
+      });
+      await tester.pumpWidget(
+        MaterialApp(
+          home: SystemGeneratedPlanningPage(
+            trip: trip,
+            provider: provider,
+            profileService: _ProfileService(
+              _profileSnapshot(categories: ['unverified-id'], confirmed: true),
+            ),
           ),
         ),
-      ),
-    );
-    await tester.pumpAndSettle();
-    await tester.tap(find.byKey(const Key('generate_cars_recommendations')));
-    await tester.pumpAndSettle();
+      );
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const Key('generate_cars_recommendations')));
+      await tester.pumpAndSettle();
 
-    expect(received, isNotNull);
-    expect(received!.totalGroupSize, 5);
-    expect(received!.childrenCount, 1);
-    expect(received!.eldersCount, 1);
-    expect(received!.travelMode, PreferredTravelMode.walking);
-    expect(received!.origin, same(trip.origin));
-    expect(received!.startDate, trip.startDate);
-    expect(received!.durationDays, trip.durationDays);
-    expect(received!.availableHoursPerDay, trip.availableHoursPerDay);
-    expect(received!.requiredTransfers, trip.requiredTransfers);
-    expect(received!.budgetMinimum, trip.budgetMinimum);
-    expect(received!.budgetMaximum, trip.budgetMaximum);
-  });
+      expect(received, isNotNull);
+      expect(received!.totalGroupSize, 5);
+      expect(received!.childrenCount, 1);
+      expect(received!.eldersCount, 1);
+      expect(received!.travelMode, PreferredTravelMode.walking);
+      expect(received!.origin, same(trip.origin));
+      expect(received!.startDate, trip.startDate);
+      expect(received!.durationDays, trip.durationDays);
+      expect(received!.availableHoursPerDay, trip.availableHoursPerDay);
+      expect(received!.requiredTransfers, trip.requiredTransfers);
+      expect(received!.budgetMinimum, trip.budgetMinimum);
+      expect(received!.budgetMaximum, trip.budgetMaximum);
+    },
+  );
 
-  test('confirmed saved values do not overwrite tourist-entered trip values', () {
-    final trip = _trip();
+  test(
+    'confirmed saved values do not overwrite tourist-entered trip values',
+    () {
+      final trip = _trip();
+      final merged = const TouristPlanningProfileTripAdapter()
+          .applyConfirmedDefaults(
+            snapshot: _profileSnapshot(categories: [], confirmed: true),
+            currentTrip: trip,
+          );
+
+      expect(merged.totalGroupSize, trip.totalGroupSize);
+      expect(merged.childrenCount, trip.childrenCount);
+      expect(merged.eldersCount, trip.eldersCount);
+      expect(merged.travelMode, trip.travelMode);
+      expect(merged.origin, same(trip.origin));
+      expect(merged.startDate, trip.startDate);
+      expect(merged.durationDays, trip.durationDays);
+      expect(merged.availableHoursPerDay, trip.availableHoursPerDay);
+      expect(merged.requiredTransfers, trip.requiredTransfers);
+      expect(merged.budgetMinimum, trip.budgetMinimum);
+      expect(merged.budgetMaximum, trip.budgetMaximum);
+    },
+  );
+
+  test('nullable confirmed profile mode never invents a trip mode', () {
+    final trip = _tripWithOptionalPreferencesMissing();
     final merged = const TouristPlanningProfileTripAdapter()
         .applyConfirmedDefaults(
-          snapshot: _profileSnapshot(categories: [], confirmed: true),
+          snapshot: _profileSnapshot(
+            categories: [],
+            confirmed: true,
+            travelMode: null,
+          ),
           currentTrip: trip,
         );
 
-    expect(merged.totalGroupSize, trip.totalGroupSize);
-    expect(merged.childrenCount, trip.childrenCount);
-    expect(merged.eldersCount, trip.eldersCount);
-    expect(merged.travelMode, trip.travelMode);
-    expect(merged.origin, same(trip.origin));
-    expect(merged.startDate, trip.startDate);
-    expect(merged.durationDays, trip.durationDays);
-    expect(merged.availableHoursPerDay, trip.availableHoursPerDay);
+    expect(merged.travelMode, isNull);
     expect(merged.requiredTransfers, trip.requiredTransfers);
-    expect(merged.budgetMinimum, trip.budgetMinimum);
-    expect(merged.budgetMaximum, trip.budgetMaximum);
+    expect(merged.origin, same(trip.origin));
   });
 
-  testWidgets('profile loading error requires explicit continue with trip inputs', (
-    tester,
-  ) async {
-    final trip = _trip();
-    TripConfiguration? received;
-    final provider = _Provider((value) async {
-      received = value;
-      return _package(empty: true);
-    });
-    await tester.pumpWidget(
-      MaterialApp(
-        home: SystemGeneratedPlanningPage(
-          trip: trip,
-          provider: provider,
-          profileService: _ProfileService(null, error: StateError('offline')),
+  testWidgets(
+    'profile loading error requires explicit continue with trip inputs',
+    (tester) async {
+      final trip = _trip();
+      TripConfiguration? received;
+      final provider = _Provider((value) async {
+        received = value;
+        return _package(empty: true);
+      });
+      await tester.pumpWidget(
+        MaterialApp(
+          home: SystemGeneratedPlanningPage(
+            trip: trip,
+            provider: provider,
+            profileService: _ProfileService(null, error: StateError('offline')),
+          ),
         ),
-      ),
-    );
-    await tester.pumpAndSettle();
+      );
+      await tester.pumpAndSettle();
 
-    expect(find.byKey(const Key('planning_profile_load_error')), findsOneWidget);
-    expect(provider.calls, 0);
-    await tester.tap(find.byKey(const Key('generate_cars_recommendations')));
-    await tester.pumpAndSettle();
-    expect(identical(received, trip), isTrue);
-  });
+      expect(
+        find.byKey(const Key('planning_profile_load_error')),
+        findsOneWidget,
+      );
+      expect(provider.calls, 0);
+      await tester.tap(find.byKey(const Key('generate_cars_recommendations')));
+      await tester.pumpAndSettle();
+      expect(identical(received, trip), isTrue);
+    },
+  );
 
   testWidgets('empty provider result and provider errors have clear states', (
     tester,
@@ -390,6 +436,7 @@ TripConfiguration _tripWithOptionalPreferencesMissing() => TripConfiguration(
 TouristPlanningProfileSnapshot _profileSnapshot({
   required List<String>? categories,
   bool confirmed = false,
+  String? travelMode = 'walking',
 }) => TouristPlanningProfileSnapshot(
   profile: TouristPlanningProfile.fromJson({
     'id': '22222222-2222-4222-8222-222222222222',
@@ -401,7 +448,7 @@ TouristPlanningProfileSnapshot _profileSnapshot({
     'preferred_categories': categories,
     'current_lat': 11.0,
     'current_lng': 122.0,
-    'travel_mode': 'walking',
+    'travel_mode': travelMode,
     'created_at': '2026-01-01T00:00:00Z',
     'number_of_tourists': 5,
     'children_count': 1,
@@ -464,5 +511,28 @@ CarsRecommendationPackage _package({bool empty = false}) {
       ),
     ],
     runReference: const CarsRunReference('cars-run'),
+    assessmentInputs: {
+      _destinationId: CarsPreparedAssessmentInputs(
+        destinationId: _destinationId,
+        destinationName: 'Verified Beach',
+        criteria: {
+          for (final criterion in CarsCriterion.values)
+            criterion: CarsPreparedCriterionInput(
+              criterion: criterion,
+              inputStatus: CarsAssessmentInputStatus.available,
+              evidence: criterion.name,
+              explanation: criterion == CarsCriterion.weatherSuitability
+                  ? 'Synthetic forecast evidence prepared for provider handoff.'
+                  : 'Synthetic assessment evidence prepared for provider handoff.',
+              approvedRuleReference:
+                  criterion == CarsCriterion.weatherSuitability
+                  ? 'test-rule-v1'
+                  : null,
+              scoreStatus: CarsScorePreparationStatus.available,
+              criterionScore: scores[criterion],
+            ),
+        },
+      ),
+    },
   );
 }

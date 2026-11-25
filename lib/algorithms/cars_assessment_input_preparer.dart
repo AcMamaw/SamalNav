@@ -175,6 +175,34 @@ class CarsAssessmentInputPreparer {
           evidence: match,
           explanation: 'Destination activity-category evidence is unavailable.',
         );
+      case CarsInterestActivityMatchStatus.activityRelationshipsIncomplete:
+        return _EvidenceState(
+          status: CarsAssessmentInputStatus.insufficientData,
+          evidence: match,
+          explanation:
+              'Destination activity-category relationships are incomplete.',
+        );
+      case CarsInterestActivityMatchStatus.duplicateActivityIdentifiers:
+      case CarsInterestActivityMatchStatus.invalidActivityEvidence:
+        return _EvidenceState(
+          status: CarsAssessmentInputStatus.invalid,
+          evidence: match,
+          explanation:
+              'Destination activity identifiers are invalid or duplicated.',
+        );
+      case CarsInterestActivityMatchStatus.inactiveActivityRecords:
+        return _EvidenceState(
+          status: CarsAssessmentInputStatus.insufficientData,
+          evidence: match,
+          explanation:
+              'Inactive activity applicability has no approved CARS rule.',
+        );
+      case CarsInterestActivityMatchStatus.staleActivityEvidence:
+        return _EvidenceState(
+          status: CarsAssessmentInputStatus.stale,
+          evidence: match,
+          explanation: 'Destination activity evidence is stale.',
+        );
       case CarsInterestActivityMatchStatus.matched:
       case CarsInterestActivityMatchStatus.noMatch:
         if (!input.preferencesConfirmed) {
@@ -451,13 +479,14 @@ class CarsCriterionScoringPolicyApplier {
         );
         continue;
       }
-      if (!score.isFinite || score < 0 || score > 100) {
+      if (!CarsScoreContract.accepts(score)) {
         output[criterion] = CarsPreparedCriterionInput(
           criterion: criterion,
           inputStatus: CarsAssessmentInputStatus.invalid,
           evidence: input.evidence,
           explanation:
-              'The approved scoring policy returned a value outside 0-100.',
+              'The approved scoring policy returned a value outside '
+              '${CarsScoreContract.minimum}-${CarsScoreContract.maximum}.',
           approvedRuleReference: reference,
           scoreStatus: CarsScorePreparationStatus.invalidRuleOutput,
           criterionScore: null,

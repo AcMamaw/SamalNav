@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../models/tourist_planning_profile.dart';
+import '../../models/transport_catalog.dart';
 import '../../services/tourist_planning_profile_service.dart';
 import '../../theme/palette.dart';
 
@@ -16,14 +17,6 @@ class PlanningPreferencesPage extends StatefulWidget {
 }
 
 class _PlanningPreferencesPageState extends State<PlanningPreferencesPage> {
-  static const _travelModes = <String>[
-    'walking',
-    'bicycle',
-    'motorcycle',
-    'car',
-    'public transportation',
-  ];
-
   final _formKey = GlobalKey<FormState>();
   final _budgetMinController = TextEditingController();
   final _budgetMaxController = TextEditingController();
@@ -34,7 +27,6 @@ class _PlanningPreferencesPageState extends State<PlanningPreferencesPage> {
   final _eldersController = TextEditingController();
 
   TouristPlanningProfileSnapshot? _snapshot;
-  String? _selectedTravelMode;
   bool _loading = true;
   bool _saving = false;
   String? _loadError;
@@ -90,7 +82,24 @@ class _PlanningPreferencesPageState extends State<PlanningPreferencesPage> {
     _groupSizeController.text = profile.numberOfTourists?.toString() ?? '';
     _childrenController.text = profile.childrenCount?.toString() ?? '';
     _eldersController.text = profile.eldersCount?.toString() ?? '';
-    _selectedTravelMode = profile.travelMode;
+  }
+
+  String _transportPreferenceDisplay(String? rawValue) {
+    if (rawValue == null) return 'No preference recorded';
+
+    final reference = TransportCatalog.initial.decodeMode(rawValue);
+    final mode = reference.definition;
+    if (mode == null) return '$rawValue (unrecognized; preserved)';
+    if (!mode.isActive) {
+      return '$rawValue (inactive historical value; preserved)';
+    }
+    if (!mode.workflowCapabilities.profilePreference) {
+      return '$rawValue (not eligible for a profile preference; preserved)';
+    }
+    if (reference.modeId != rawValue) {
+      return '$rawValue (legacy alias for ${reference.modeId}; preserved)';
+    }
+    return rawValue;
   }
 
   int? get _derivedAdults {
@@ -127,7 +136,7 @@ class _PlanningPreferencesPageState extends State<PlanningPreferencesPage> {
       // and current_lat/current_lng are not treated as a saved trip origin.
       currentLat: current.currentLat,
       currentLng: current.currentLng,
-      travelMode: _selectedTravelMode ?? current.travelMode,
+      travelMode: current.travelMode,
       createdAt: current.createdAt,
       numberOfTourists: _parseOptionalInt(_groupSizeController.text),
       childrenCount: _parseOptionalInt(_childrenController.text),
@@ -135,7 +144,16 @@ class _PlanningPreferencesPageState extends State<PlanningPreferencesPage> {
     );
 
     final oldCategories = current.preferredCategories?.toSet() ?? <String>{};
-    final allowedModes = {..._travelModes, current.travelMode};
+    final profilePreferenceModes = TransportCatalog.initial.modes.where(
+      (mode) => mode.isActive && mode.workflowCapabilities.profilePreference,
+    );
+    final allowedModes = <String>{
+      for (final mode in profilePreferenceModes) ...[
+        mode.id,
+        ...mode.legacyAliases,
+      ],
+      if (current.travelMode != null) current.travelMode!,
+    };
     final policy = TouristPlanningProfileValidationPolicy(
       maximumHoursPerDay: 24,
       maximumTripDays: 30,
@@ -158,7 +176,8 @@ class _PlanningPreferencesPageState extends State<PlanningPreferencesPage> {
           'Budget amount: ${candidate.budgetMin} to ${candidate.budgetMax}\n'
           'Schedule: ${candidate.availableHoursPerDay} hours/day for '
           '${candidate.tripDurationDays} day(s)\n'
-          'Travel mode: ${candidate.travelMode}\n'
+          'Existing transportation preference (read-only): '
+          '${_transportPreferenceDisplay(candidate.travelMode)}\n'
           'Group: ${candidate.numberOfTourists?.toString() ?? 'not set'} '
           'total; ${_derivedAdults?.toString() ?? 'adults not derivable'} adults\n\n'
           'Budget basis, category selection, and separate trip origin are not '
@@ -219,6 +238,12 @@ class _PlanningPreferencesPageState extends State<PlanningPreferencesPage> {
     }
     if (error is TouristPlanningProfileValidationException) {
       return error.errors.values.join(' ');
+    }
+    if (error is TouristPlanningProfileNetworkException) {
+      return '${error.message} Your last saved profile is unchanged.';
+    }
+    if (error is TouristPlanningProfileStorageException) {
+      return '${error.message} Your last saved profile is unchanged.';
     }
     return 'Could not load or save planning preferences. Please try again.';
   }
@@ -430,30 +455,18 @@ class _PlanningPreferencesPageState extends State<PlanningPreferencesPage> {
               ),
               const SizedBox(height: 20),
               Text(
-                'Travel mode',
+                'Transportation preference',
                 style: Theme.of(context).textTheme.titleMedium,
               ),
-              DropdownButtonFormField<String>(
-                key: const Key('travel_mode_dropdown'),
-                initialValue: _selectedTravelMode,
-                decoration: const InputDecoration(
-                  labelText: 'Preferred travel mode',
-                ),
-                items: [
-                  if (!_travelModes.contains(_selectedTravelMode))
-                    DropdownMenuItem(
-                      value: _selectedTravelMode,
-                      child: Text(
-                        'Saved value: $_selectedTravelMode (unsupported)',
-                      ),
-                    ),
-                  ..._travelModes.map(
-                    (mode) => DropdownMenuItem(value: mode, child: Text(mode)),
-                  ),
-                ],
-                onChanged: _saving
-                    ? null
-                    : (value) => setState(() => _selectedTravelMode = value),
+              Text(
+                _transportPreferenceDisplay(profile.travelMode),
+                key: const Key('saved_travel_mode_readonly'),
+              ),
+              const SizedBox(height: 4),
+              const Text(
+                'Saved preference is unconfirmed and is not changed by this '
+                'profile update. It does not confirm transportation service '
+                'availability.',
               ),
               const SizedBox(height: 20),
               Text(

@@ -13,7 +13,13 @@ class TouristPlanningProfile {
   final List<String>? preferredCategories;
   final double? currentLat;
   final double? currentLng;
-  final String travelMode;
+
+  /// The locally represented profile preference. This is intentionally
+  /// nullable even while the remote column remains non-nullable.
+  ///
+  /// Nonempty values are kept exactly as read so legacy aliases and unknown
+  /// historical identifiers can be displayed and preserved without loss.
+  final String? travelMode;
   final DateTime createdAt;
   final int? numberOfTourists;
   final int? childrenCount;
@@ -61,7 +67,7 @@ class TouristPlanningProfile {
       preferredCategories: categories,
       currentLat: _nullableDouble(json, 'current_lat'),
       currentLng: _nullableDouble(json, 'current_lng'),
-      travelMode: _requiredString(json, 'travel_mode'),
+      travelMode: _nullableTravelMode(json, 'travel_mode'),
       createdAt: _requiredDateTime(json, 'created_at'),
       numberOfTourists: _nullableInt(json, 'number_of_tourists'),
       childrenCount: _nullableInt(json, 'children_count'),
@@ -134,8 +140,12 @@ class TouristPlanningProfile {
         (!currentLng!.isFinite || currentLng! < -180 || currentLng! > 180)) {
       errors['current_lng'] = 'Longitude must be between -180 and 180.';
     }
-    if (!policy.supportedTravelModes.contains(travelMode)) {
-      errors['travel_mode'] = 'Travel mode is not in the approved set.';
+    if (travelMode != null) {
+      if (travelMode!.isEmpty) {
+        errors['travel_mode'] = 'Travel mode must not be empty.';
+      } else if (!policy.supportedTravelModes.contains(travelMode)) {
+        errors['travel_mode'] = 'Travel mode is not in the approved set.';
+      }
     }
 
     if (numberOfTourists != null && numberOfTourists! <= 0) {
@@ -165,6 +175,16 @@ class TouristPlanningProfile {
     final value = json[key];
     if (value is String && value.isNotEmpty) return value;
     throw FormatException('$key must be a non-empty string.');
+  }
+
+  static String? _nullableTravelMode(Map<String, dynamic> json, String key) {
+    if (!json.containsKey(key)) {
+      throw FormatException('$key must be present and may be null.');
+    }
+    final value = json[key];
+    if (value == null) return null;
+    if (value is String && value.isNotEmpty) return value;
+    throw FormatException('$key must be null or a non-empty string.');
   }
 
   static double _requiredDouble(Map<String, dynamic> json, String key) {

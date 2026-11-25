@@ -47,8 +47,9 @@ class CarsEligibilityEvaluator {
 /// Weighted ranker for already-normalized CARS criterion scores.
 ///
 /// Scores and weights are validated without normalization or redistribution.
-/// The score is the sum of six `weight * score` contributions, on a 0-100
-/// scale. Equal totals are ordered by destination ID, then name, ascending.
+/// The score is the sum of six `weight * score` contributions, on the
+/// [CarsScoreContract] scale, currently 0-100. Equal totals are ordered by
+/// destination ID, then name, ascending.
 class CarsRecommendationEngine {
   /// Absolute tolerance used only when validating the sum of weights.
   static const double weightSumTolerance = 1e-9;
@@ -126,11 +127,12 @@ class CarsRecommendationEngine {
       for (final criterion in CarsCriterion.values) {
         final score = candidate.criterionScores[criterion];
         if (score == null) continue;
-        if (!score.isFinite || score < 0 || score > 100) {
+        if (!CarsScoreContract.accepts(score)) {
           throw ArgumentError.value(
             score,
             '${candidate.destinationId}.${criterion.name}',
-            'Criterion score must be finite and between 0 and 100.',
+            'Criterion score must be finite and between '
+                '${CarsScoreContract.minimum} and ${CarsScoreContract.maximum}.',
           );
         }
         scores[criterion] = score;
@@ -211,7 +213,8 @@ class CarsRecommendationEngine {
       (best, candidate) =>
           contributions[candidate]! > contributions[best]! ? candidate : best,
     );
-    return 'Recommendation score ${total.toStringAsFixed(2)} / 100. '
+    return 'Recommendation score ${total.toStringAsFixed(2)} / '
+        '${CarsScoreContract.maximum.toStringAsFixed(0)}. '
         'Largest weighted contribution: ${topCriterion.name} '
         '(${scores[topCriterion]!.toStringAsFixed(2)} x '
         '${weights[topCriterion]!.toStringAsFixed(4)} = '

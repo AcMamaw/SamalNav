@@ -1,3 +1,7 @@
+import 'dart:async';
+import 'dart:io';
+
+import 'package:http/http.dart' as http;
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../models/tourist_planning_profile.dart';
@@ -77,23 +81,46 @@ class TouristPlanningProfileService {
       throw TouristPlanningProfileValidationException(validation.errors);
     }
 
-    final row = await _client
-        .from(_table)
-        .update(profile.toJson())
-        .eq('user_id', userId)
-        .select()
-        .maybeSingle();
-    if (row == null) {
-      throw const TouristPlanningProfileServiceException(
-        'No accessible planning profile exists for the authenticated user.',
+    final updatePayload = profile.toJson()..remove('travel_mode');
+    try {
+      final row = await _client
+          .from(_table)
+          .update(updatePayload)
+          .eq('user_id', userId)
+          .select()
+          .maybeSingle();
+      if (row == null) {
+        throw const TouristPlanningProfileServiceException(
+          'No accessible planning profile exists for the authenticated user.',
+        );
+      }
+      return TouristPlanningProfileSnapshot(
+        profile: TouristPlanningProfile.fromJson(row),
+        // No deployed confirmation field exists yet; never infer confirmation
+        // from persisted values, including values explicitly just edited.
+        preferencesConfirmed: false,
+      );
+    } on PostgrestException catch (error) {
+      throw TouristPlanningProfileStorageException(
+        'The planning profile could not be saved (${error.code ?? 'storage error'}).',
+      );
+    } on http.ClientException {
+      throw const TouristPlanningProfileNetworkException(
+        'A network error prevented saving the planning profile.',
+      );
+    } on SocketException {
+      throw const TouristPlanningProfileNetworkException(
+        'A network error prevented saving the planning profile.',
+      );
+    } on TimeoutException {
+      throw const TouristPlanningProfileNetworkException(
+        'The request timed out before the planning profile was saved.',
+      );
+    } on FormatException catch (error) {
+      throw TouristPlanningProfileStorageException(
+        'The saved planning profile could not be read: ${error.message}',
       );
     }
-    return TouristPlanningProfileSnapshot(
-      profile: TouristPlanningProfile.fromJson(row),
-      // No deployed confirmation field exists yet; never infer confirmation
-      // from the persisted values, including values explicitly just edited.
-      preferencesConfirmed: false,
-    );
   }
 
   String _requireCurrentUserId() {
@@ -137,4 +164,14 @@ class TouristPlanningProfileValidationException
 
   TouristPlanningProfileValidationException(this.errors)
     : super('Planning profile validation failed: ${errors.keys.join(', ')}.');
+}
+
+class TouristPlanningProfileNetworkException
+    extends TouristPlanningProfileServiceException {
+  const TouristPlanningProfileNetworkException(super.message);
+}
+
+class TouristPlanningProfileStorageException
+    extends TouristPlanningProfileServiceException {
+  const TouristPlanningProfileStorageException(super.message);
 }

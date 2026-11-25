@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:samal_nav/algorithms/cars_assessment_input_preparer.dart';
 import 'package:samal_nav/algorithms/cars_engine.dart';
+import 'package:samal_nav/algorithms/cars_interest_activity_matcher.dart';
 import 'package:samal_nav/models/cars_models.dart';
 import 'package:samal_nav/models/destination_record.dart';
 import 'package:samal_nav/models/itinerary_draft.dart';
@@ -25,6 +27,16 @@ void main() {
         },
       ),
     ]);
+    final interestEvidence = CarsInterestActivityMatchAssessment(
+      status: CarsInterestActivityMatchStatus.matched,
+      mappingSourceReference: 'synthetic mapping fixture',
+      mappingVersion: 'test-v1',
+      activitySourceReference: 'synthetic activity fixture',
+      activityRetrievedAt: DateTime.utc(2026, 11, 17),
+      activityFreshUntil: DateTime.utc(2026, 11, 20),
+      matchedPreferenceIdentifiers: const {'interest-id'},
+      matchedActivityIdentifiers: const {'activity-id'},
+    );
 
     await tester.pumpWidget(
       MaterialApp(
@@ -38,6 +50,39 @@ void main() {
                         builder: (_) => CarsRecommendationReviewPage(
                           ranking: ranking,
                           destinations: [_destination()],
+                          assessmentInputs: {
+                            _insufficientId: CarsPreparedAssessmentInputs(
+                              destinationId: _insufficientId,
+                              destinationName: 'Cave Trail',
+                              criteria: {
+                                for (final criterion in CarsCriterion.values)
+                                  criterion: CarsPreparedCriterionInput(
+                                    criterion: criterion,
+                                    inputStatus:
+                                        criterion ==
+                                            CarsCriterion
+                                                .publicDestinationRating
+                                        ? CarsAssessmentInputStatus.available
+                                        : CarsAssessmentInputStatus
+                                              .insufficientData,
+                                    evidence:
+                                        criterion ==
+                                            CarsCriterion.interestActivityMatch
+                                        ? interestEvidence
+                                        : criterion ==
+                                              CarsCriterion
+                                                  .publicDestinationRating
+                                        ? _ratingEvidence()
+                                        : null,
+                                    explanation: 'Synthetic evidence fixture.',
+                                    approvedRuleReference: null,
+                                    scoreStatus: CarsScorePreparationStatus
+                                        .evidenceNotScoreable,
+                                    criterionScore: null,
+                                  ),
+                              },
+                            ),
+                          },
                           trip: TripConfiguration(
                             durationDays: 1,
                             availableHoursPerDay: 8,
@@ -88,11 +133,27 @@ void main() {
       find.text('Insufficient score data: Weather suitability'),
       findsOneWidget,
     );
-    final continueButton = tester.widget<FilledButton>(
-      find.byKey(const Key('continue_cars_draft_review')),
+    final evidenceTile = find.byKey(
+      const Key('cars_evidence_$_insufficientId'),
     );
-    expect(continueButton.onPressed, isNull);
-
+    await tester.ensureVisible(evidenceTile);
+    await tester.tap(evidenceTile);
+    await tester.pumpAndSettle();
+    expect(
+      find.textContaining('Mapping source: synthetic mapping fixture'),
+      findsOneWidget,
+    );
+    expect(find.textContaining('Mapping version: test-v1'), findsOneWidget);
+    expect(
+      find.textContaining('Activity source: synthetic activity fixture'),
+      findsOneWidget,
+    );
+    expect(
+      find.textContaining(
+        'Verified rating evidence: 4.5/5 (not a CARS score).',
+      ),
+      findsOneWidget,
+    );
     await tester.drag(find.byType(ListView), const Offset(0, 2000));
     await tester.pump();
     await tester.ensureVisible(
@@ -262,3 +323,24 @@ DestinationRecord _destination() => const DestinationRecord(
   hasUsableCoordinates: true,
   hasUsableVisitDuration: true,
 );
+
+DestinationRecord _ratingEvidence() {
+  final now = DateTime.now();
+  return DestinationRecord(
+    id: _insufficientId,
+    name: 'Cave Trail',
+    location: 'Samal Island',
+    lat: 7,
+    lng: 125,
+    category: 'Nature',
+    rating: 4.5,
+    ratingDataState: DestinationRatingDataState.available,
+    ratingVerification: DestinationRatingVerification.verified,
+    ratingSource: 'synthetic public rating source',
+    ratingRetrievedAt: now.subtract(const Duration(hours: 1)),
+    ratingFreshUntil: now.add(const Duration(days: 1)),
+    status: 'active',
+    isVerified: true,
+    source: DestinationRecordSource.database,
+  );
+}

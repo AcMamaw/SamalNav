@@ -20,6 +20,7 @@ class DestinationRecord {
   final double lng;
   final String? categoryId;
   final String category;
+
   /// Parsed 0..5 value, retained even if provenance is not verified.
   final double? rating;
   final DestinationRatingDataState ratingDataState;
@@ -80,12 +81,23 @@ class DestinationRecord {
   PriceInfo get entrancePrice => PriceInfo.fromRaw(rawEntranceFee);
 
   /// Only an explicitly verified, valid database rating is displayable as a
-  /// public rating. Bundled fallback values and unverified values remain
-  /// preserved in [rating] but are unavailable to rating consumers.
+  /// public rating. Complete, current provenance is required; bundled,
+  /// unverified, stale, and provenance-free values remain unavailable.
   double? get availableRating {
+    final now = DateTime.now();
     if (source == DestinationRecordSource.fallback ||
         ratingDataState != DestinationRatingDataState.available ||
-        ratingVerification != DestinationRatingVerification.verified) {
+        ratingVerification != DestinationRatingVerification.verified ||
+        rating == null ||
+        !rating!.isFinite ||
+        rating! < 0 ||
+        rating! > 5 ||
+        ratingSource == null ||
+        ratingSource!.trim().isEmpty ||
+        ratingRetrievedAt == null ||
+        ratingFreshUntil == null ||
+        ratingRetrievedAt!.isAfter(now) ||
+        !ratingFreshUntil!.isAfter(now)) {
       return null;
     }
     return rating;
@@ -162,9 +174,8 @@ class DestinationRecord {
         ? json['rating_average']
         : json['rating'];
     final parsedRating = _tryFiniteDouble(rawRating);
-    final validRating = parsedRating != null &&
-        parsedRating >= 0 &&
-        parsedRating <= 5;
+    final validRating =
+        parsedRating != null && parsedRating >= 0 && parsedRating <= 5;
     final ratingVerification = switch (json['rating_is_verified']) {
       true => DestinationRatingVerification.verified,
       false => DestinationRatingVerification.unverified,

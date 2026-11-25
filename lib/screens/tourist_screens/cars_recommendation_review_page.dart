@@ -1,9 +1,14 @@
 import 'package:flutter/material.dart';
 
+import '../../algorithms/cars_assessment_input_preparer.dart';
+import '../../algorithms/cars_budget_assessment.dart';
+import '../../algorithms/cars_interest_activity_matcher.dart';
+import '../../algorithms/cars_travel_assessment.dart';
 import '../../algorithms/system_generated_draft_builder.dart';
 import '../../models/cars_models.dart';
 import '../../models/destination_record.dart';
 import '../../models/itinerary_draft.dart';
+import '../../services/open_weather_map_service.dart';
 import 'system_generated_draft_review_page.dart';
 
 /// Lets a tourist review and select actual CARS results before optimization.
@@ -11,6 +16,7 @@ import 'system_generated_draft_review_page.dart';
 class CarsRecommendationReviewPage extends StatefulWidget {
   final CarsRankingResult ranking;
   final List<DestinationRecord> destinations;
+  final Map<String, CarsPreparedAssessmentInputs> assessmentInputs;
   final TripConfiguration trip;
   final CarsRunReference carsRunReference;
 
@@ -18,6 +24,7 @@ class CarsRecommendationReviewPage extends StatefulWidget {
     super.key,
     required this.ranking,
     required this.destinations,
+    this.assessmentInputs = const {},
     required this.trip,
     required this.carsRunReference,
   });
@@ -124,9 +131,10 @@ class _CarsRecommendationReviewPageState
                       'Review the trip details and recommendations. Scores and '
                       'data limitations below come from this CARS result; '
                       'missing values are not filled or reweighted here. '
-                      'The current result contract does not include a saved '
-                      'preference-profile snapshot, so confirm the correct '
-                      'preferences were used before continuing.',
+                      'Evidence details are shown when the provider supplies '
+                      'them. The result does not retain a saved preference '
+                      'profile snapshot; confirm the intended preferences. '
+                      'Missing evidence is not scored or reweighted.',
                     ),
                   ],
                 ),
@@ -231,7 +239,7 @@ class _CarsRecommendationReviewPageState
             title: Text(result.destinationName),
             subtitle: Text(
               isSelectable
-                  ? 'CARS score ${result.recommendationScore?.toStringAsFixed(2) ?? 'unavailable'} / 100'
+                  ? 'CARS score ${result.recommendationScore?.toStringAsFixed(2) ?? 'unavailable'} / ${CarsScoreContract.maximum.toStringAsFixed(0)}'
                   : 'This recommendation has no verified, active database destination record and cannot be selected.',
             ),
             controlAffinity: ListTileControlAffinity.leading,
@@ -249,6 +257,7 @@ class _CarsRecommendationReviewPageState
                     '${scores[criterion]?.toStringAsFixed(1) ?? 'missing'}'
                     '${contributions.containsKey(criterion) ? ' (weighted contribution ${contributions[criterion]!.toStringAsFixed(2)})' : ''}',
                   ),
+                _buildAssessmentEvidence(result.destinationId),
                 if (_selectedIds.contains(result.destinationId) &&
                     widget.trip.durationDays > 1)
                   Padding(
@@ -295,15 +304,148 @@ class _CarsRecommendationReviewPageState
         ? 'Insufficient score data: ${missingLabels.join(', ')}'
         : result.explanation;
     return Card(
-      child: ListTile(
-        key: Key('cars_excluded_${result.destinationId}'),
-        leading: const Icon(Icons.info_outline),
-        title: Text(result.destinationName),
-        subtitle: Text(limitation),
+      child: Column(
+        children: [
+          ListTile(
+            key: Key('cars_excluded_${result.destinationId}'),
+            leading: const Icon(Icons.info_outline),
+            title: Text(result.destinationName),
+            subtitle: Text(limitation),
+          ),
+          _buildAssessmentEvidence(result.destinationId),
+        ],
       ),
     );
+  }
+
+  Widget _buildAssessmentEvidence(String destinationId) {
+    final prepared = widget.assessmentInputs[destinationId];
+    if (prepared == null) return const SizedBox.shrink();
+    return ExpansionTile(
+      key: Key('cars_evidence_$destinationId'),
+      title: const Text('Criterion evidence and availability'),
+      children: [
+        for (final criterion in CarsCriterion.values)
+          _buildCriterionEvidence(criterion, prepared.criteria[criterion]),
+      ],
+    );
+  }
+
+  Widget _buildCriterionEvidence(
+    CarsCriterion criterion,
+    CarsPreparedCriterionInput? input,
+  ) {
+    final label = _criterionLabels[criterion] ?? criterion.name;
+    if (input == null) {
+      return ListTile(
+        dense: true,
+        title: Text(label),
+        subtitle: const Text('Evidence details were not supplied.'),
+      );
+    }
+    final details = _provenanceDetails(
+      input.evidence,
+      ratingIsAvailable:
+          input.inputStatus == CarsAssessmentInputStatus.available,
+    );
+    return ListTile(
+      dense: true,
+      title: Text('$label · ${_readable(input.inputStatus.name)}'),
+      subtitle: Text(
+        [
+          input.explanation,
+          'Score preparation: ${_readable(input.scoreStatus.name)}.',
+          if (input.approvedRuleReference != null)
+            'Scoring rule: ${input.approvedRuleReference}',
+          if (input.criterionScore == null)
+            'No numeric criterion score was supplied.',
+          ...details,
+        ].join(' '),
+      ),
+    );
+  }
+
+  List<String> _provenanceDetails(
+    Object? evidence, {
+    bool ratingIsAvailable = false,
+  }) {
+    if (evidence is DestinationRecord) {
+      return [
+        if (ratingIsAvailable && evidence.rating != null)
+          'Verified rating evidence: ${evidence.rating}/5 (not a CARS score).',
+        if (evidence.ratingSource != null) 'Source: ${evidence.ratingSource}',
+        if (evidence.ratingRetrievedAt != null)
+          'Retrieved: ${_dateTimeLabel(evidence.ratingRetrievedAt!)}',
+        if (evidence.ratingFreshUntil != null)
+          'Fresh until: ${_dateTimeLabel(evidence.ratingFreshUntil!)}',
+      ];
+    }
+    if (evidence is WeatherForecastResult) {
+      return [
+        'Source: OpenWeatherMap forecast',
+        'Forecast period: '
+            '${_dateLabel(evidence.requestedStartDate)} to '
+            '${_dateLabel(evidence.requestedEndDate)}',
+        'Retrieved: ${_dateTimeLabel(evidence.retrievedAt)}',
+        'Coverage: ${_readable(evidence.coverage.name)}',
+      ];
+    }
+    if (evidence is CarsTravelAssessment) {
+      final legs = evidence.days.expand((day) => day.legs);
+      final sources = legs
+          .map((leg) => leg.source)
+          .whereType<String>()
+          .where((source) => source.trim().isNotEmpty)
+          .toSet();
+      final retrievals = legs
+          .map((leg) => leg.retrievedAt)
+          .whereType<DateTime>()
+          .toSet();
+      return [
+        if (sources.isNotEmpty) 'Route source: ${sources.join(', ')}',
+        if (retrievals.isNotEmpty)
+          'Retrieved: ${retrievals.map(_dateTimeLabel).join(', ')}',
+        ...evidence.limitations,
+      ];
+    }
+    if (evidence is CarsBudgetAssessment) {
+      return [
+        if (evidence.currency != null) 'Currency: ${evidence.currency}',
+        if (evidence.missingInformation.isNotEmpty)
+          'Unavailable details: ${evidence.missingInformation.join('; ')}',
+      ];
+    }
+    if (evidence is CarsInterestActivityMatchAssessment) {
+      return [
+        if (evidence.mappingSourceReference != null)
+          'Mapping source: ${evidence.mappingSourceReference}',
+        if (evidence.mappingVersion != null)
+          'Mapping version: ${evidence.mappingVersion}',
+        if (evidence.activitySourceReference != null)
+          'Activity source: ${evidence.activitySourceReference}',
+        if (evidence.activityRetrievedAt != null)
+          'Activities retrieved: '
+              '${_dateTimeLabel(evidence.activityRetrievedAt!)}',
+        if (evidence.activityFreshUntil != null)
+          'Activity evidence valid until: '
+              '${_dateTimeLabel(evidence.activityFreshUntil!)}',
+        if (evidence.matchedActivityIdentifiers.isNotEmpty)
+          'Matched activity identifiers: '
+              '${evidence.matchedActivityIdentifiers.join(', ')}',
+      ];
+    }
+    return const [];
   }
 }
 
 String _dateLabel(DateTime date) =>
     '${date.year}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')}';
+
+String _dateTimeLabel(DateTime date) => date.toUtc().toIso8601String();
+
+String _readable(String value) => value
+    .replaceAllMapped(
+      RegExp(r'([a-z])([A-Z])'),
+      (match) => '${match[1]} ${match[2]}',
+    )
+    .replaceAll('_', ' ');

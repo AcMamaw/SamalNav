@@ -109,6 +109,7 @@ class _SystemGeneratedPlanningPageState
           builder: (_) => CarsRecommendationReviewPage(
             ranking: package.ranking,
             destinations: package.destinations,
+            assessmentInputs: package.assessmentInputs,
             trip: trip,
             carsRunReference: package.runReference,
           ),
@@ -218,7 +219,7 @@ class _SystemGeneratedPlanningPageState
                   ),
                   OutlinedButton.icon(
                     key: const Key('retry_cars_empty'),
-                      onPressed: () => _loadRecommendations(),
+                    onPressed: () => _loadRecommendations(),
                     icon: const Icon(Icons.refresh),
                     label: const Text('Try again'),
                   ),
@@ -238,7 +239,7 @@ class _SystemGeneratedPlanningPageState
                   ),
                   OutlinedButton.icon(
                     key: const Key('retry_cars_closed'),
-                      onPressed: () => _loadRecommendations(),
+                    onPressed: () => _loadRecommendations(),
                     icon: const Icon(Icons.refresh),
                     label: const Text('Try again'),
                   ),

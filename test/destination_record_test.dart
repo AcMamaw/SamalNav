@@ -16,21 +16,23 @@ const _categoryId = 'f70e425a-2af5-4f3f-8c31-ec8dbe4c0b89';
 void main() {
   group('DestinationRecord rating data', () {
     test('preserves a valid verified rating and available provenance', () {
+      final retrievedAt = DateTime.now().subtract(const Duration(days: 1));
+      final freshUntil = DateTime.now().add(const Duration(days: 1));
       final destination = DestinationRecord.fromJson({
         ..._destinationJson(),
         'rating_average': '4.25',
         'rating_is_verified': true,
         'rating_source': 'official directory',
-        'rating_retrieved_at': '2026-10-01T08:00:00Z',
-        'rating_fresh_until': '2026-11-01T08:00:00Z',
+        'rating_retrieved_at': retrievedAt.toIso8601String(),
+        'rating_fresh_until': freshUntil.toIso8601String(),
       }, source: DestinationRecordSource.database);
 
       expect(destination.rating, 4.25);
       expect(destination.ratingDataState, DestinationRatingDataState.available);
       expect(destination.availableRating, 4.25);
       expect(destination.ratingSource, 'official directory');
-      expect(destination.ratingRetrievedAt, DateTime.parse('2026-10-01T08:00:00Z'));
-      expect(destination.ratingFreshUntil, DateTime.parse('2026-11-01T08:00:00Z'));
+      expect(destination.ratingRetrievedAt, retrievedAt);
+      expect(destination.ratingFreshUntil, freshUntil);
     });
 
     test('preserves explicit zero as a valid rating', () {
@@ -38,10 +40,41 @@ void main() {
         ..._destinationJson(),
         'rating_average': 0,
         'rating_is_verified': true,
+        'rating_source': 'approved rating source',
+        'rating_retrieved_at': DateTime.now()
+            .subtract(const Duration(days: 1))
+            .toIso8601String(),
+        'rating_fresh_until': DateTime.now()
+            .add(const Duration(days: 1))
+            .toIso8601String(),
       }, source: DestinationRecordSource.database);
 
       expect(destination.rating, 0);
       expect(destination.availableRating, 0);
+    });
+
+    test('accepts verified midpoint and maximum values within the scale', () {
+      final now = DateTime.now();
+      for (final value in [2.5, 5.0]) {
+        final destination = DestinationRecord.fromJson({
+          ..._destinationJson(),
+          'rating_average': value,
+          'rating_is_verified': true,
+          'rating_source': 'synthetic rating source',
+          'rating_retrieved_at': now
+              .subtract(const Duration(hours: 1))
+              .toIso8601String(),
+          'rating_fresh_until': now
+              .add(const Duration(days: 1))
+              .toIso8601String(),
+        }, source: DestinationRecordSource.database);
+
+        expect(
+          destination.ratingDataState,
+          DestinationRatingDataState.available,
+        );
+        expect(destination.availableRating, value);
+      }
     });
 
     test('null and absent rating values are unavailable', () {
@@ -61,7 +94,13 @@ void main() {
     });
 
     test('malformed, non-finite, and out-of-range values are unavailable', () {
-      for (final invalid in ['not a rating', double.nan, double.infinity, -0.1, 5.1]) {
+      for (final invalid in [
+        'not a rating',
+        double.nan,
+        double.infinity,
+        -0.1,
+        5.1,
+      ]) {
         final destination = DestinationRecord.fromJson({
           ..._destinationJson(),
           'rating_average': invalid,
@@ -81,7 +120,10 @@ void main() {
       }, source: DestinationRecordSource.database);
 
       expect(destination.rating, 4.5);
-      expect(destination.ratingVerification, DestinationRatingVerification.unknown);
+      expect(
+        destination.ratingVerification,
+        DestinationRatingVerification.unknown,
+      );
       expect(destination.availableRating, isNull);
     });
 
@@ -120,11 +162,66 @@ void main() {
       final destination = DestinationRecord.fromJson({
         ..._destinationJson(),
         'rating_is_verified': true,
+        'rating_source': 'approved rating source',
+        'rating_retrieved_at': DateTime.now()
+            .subtract(const Duration(days: 1))
+            .toIso8601String(),
+        'rating_fresh_until': DateTime.now()
+            .add(const Duration(days: 1))
+            .toIso8601String(),
       }, source: DestinationRecordSource.database);
 
       expect(Place.fromRecord(destination).rating, 4.5);
       expect(MapPlace.fromRecord(destination).rating, 4.5);
     });
+
+    test(
+      'verified numeric value without provenance is not publicly available',
+      () {
+        final destination = DestinationRecord.fromJson({
+          ..._destinationJson(),
+          'rating_average': 4.5,
+          'rating_is_verified': true,
+        }, source: DestinationRecordSource.database);
+
+        expect(destination.rating, 4.5);
+        expect(destination.availableRating, isNull);
+      },
+    );
+
+    test(
+      'stale and future-retrieved rating evidence is not publicly available',
+      () {
+        final now = DateTime.now();
+        final base = {
+          ..._destinationJson(),
+          'rating_average': 4.5,
+          'rating_is_verified': true,
+          'rating_source': 'approved rating source',
+        };
+        final stale = DestinationRecord.fromJson({
+          ...base,
+          'rating_retrieved_at': now
+              .subtract(const Duration(days: 2))
+              .toIso8601String(),
+          'rating_fresh_until': now
+              .subtract(const Duration(seconds: 1))
+              .toIso8601String(),
+        }, source: DestinationRecordSource.database);
+        final future = DestinationRecord.fromJson({
+          ...base,
+          'rating_retrieved_at': now
+              .add(const Duration(days: 1))
+              .toIso8601String(),
+          'rating_fresh_until': now
+              .add(const Duration(days: 2))
+              .toIso8601String(),
+        }, source: DestinationRecordSource.database);
+
+        expect(stale.availableRating, isNull);
+        expect(future.availableRating, isNull);
+      },
+    );
 
     test('favorite rating snapshots reject missing and invalid values', () {
       expect(FavoriteItem.parseValidRating(null), isNull);

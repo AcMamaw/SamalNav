@@ -36,7 +36,8 @@ class TouristPlanningProfileTripAdapter {
     );
   }
 
-  PreferredTravelMode? _travelMode(String value) => switch (value) {
+  PreferredTravelMode? _travelMode(String? value) => switch (value) {
+    null => null,
     'walking' => PreferredTravelMode.walking,
     'bicycle' => PreferredTravelMode.bicycle,
     'motorcycle' => PreferredTravelMode.motorcycle,

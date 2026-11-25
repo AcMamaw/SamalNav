@@ -72,6 +72,52 @@ void main() {
       expect(item.explanation, contains('80.00 / 100'));
     });
 
+    test('matches a hand-calculated six-criterion weighted fixture', () {
+      final scores = <CarsCriterion, double?>{
+        CarsCriterion.interestActivityMatch: 100,
+        CarsCriterion.publicDestinationRating: 50,
+        CarsCriterion.weatherSuitability: 0,
+        CarsCriterion.budgetCompatibility: 80,
+        CarsCriterion.travelDistanceSuitability: 20,
+        CarsCriterion.availableTravelTimeCompatibility: 40,
+      };
+
+      // 25 + 10 + 0 + 12 + 3 + 4 = 54 on the existing 0-100 scale.
+      final result = testEngine().rank([testCandidate(scores: scores)]);
+      final item = result.ranked.single;
+
+      expect(item.weightedContributions, {
+        CarsCriterion.interestActivityMatch: 25,
+        CarsCriterion.publicDestinationRating: 10,
+        CarsCriterion.weatherSuitability: 0,
+        CarsCriterion.budgetCompatibility: 12,
+        CarsCriterion.travelDistanceSuitability: 3,
+        CarsCriterion.availableTravelTimeCompatibility: 4,
+      });
+      expect(item.recommendationScore, 54);
+    });
+
+    test('accepts numeric zero and both endpoints as supplied scores', () {
+      final allZero = testEngine().rank([
+        testCandidate(
+          id: 'zero-is-data',
+          scores: {for (final criterion in CarsCriterion.values) criterion: 0},
+        ),
+      ]);
+      final allMaximum = testEngine().rank([
+        testCandidate(
+          id: 'maximum',
+          scores: {
+            for (final criterion in CarsCriterion.values) criterion: 100,
+          },
+        ),
+      ]);
+
+      expect(allZero.ranked.single.recommendationScore, 0);
+      expect(allZero.ranked.single.criterionScores!.values, everyElement(0));
+      expect(allMaximum.ranked.single.recommendationScore, 100);
+    });
+
     test('sorts candidates by descending recommendation score', () {
       final lower = testCandidate(
         id: 'a',
@@ -174,29 +220,35 @@ void main() {
       },
     );
 
-    test('raw public rating alone cannot satisfy the CARS rating criterion', () {
-      final scores = <CarsCriterion, double?>{
-        for (final criterion in CarsCriterion.values) criterion: 75.0,
-      };
-      scores[CarsCriterion.publicDestinationRating] = null;
+    test(
+      'raw public rating alone cannot satisfy the CARS rating criterion',
+      () {
+        final scores = <CarsCriterion, double?>{
+          for (final criterion in CarsCriterion.values) criterion: 75.0,
+        };
+        scores[CarsCriterion.publicDestinationRating] = null;
 
-      final result = testEngine().rank([
-        testCandidate(
-          scores: scores,
-          rawContext: CarsRawContext(
-            publicRating: 4.8,
-            publicRatingSource: 'unverified test value',
+        final result = testEngine().rank([
+          testCandidate(
+            scores: scores,
+            rawContext: CarsRawContext(
+              publicRating: 4.8,
+              publicRatingSource: 'unverified test value',
+            ),
           ),
-        ),
-      ]);
+        ]);
 
-      expect(result.ranked, isEmpty);
-      expect(result.excluded.single.outcome, CarsCandidateOutcome.insufficientData);
-      expect(result.excluded.single.recommendationScore, isNull);
-      expect(result.excluded.single.missingCriteria, [
-        CarsCriterion.publicDestinationRating.name,
-      ]);
-    });
+        expect(result.ranked, isEmpty);
+        expect(
+          result.excluded.single.outcome,
+          CarsCandidateOutcome.insufficientData,
+        );
+        expect(result.excluded.single.recommendationScore, isNull);
+        expect(result.excluded.single.missingCriteria, [
+          CarsCriterion.publicDestinationRating.name,
+        ]);
+      },
+    );
 
     test(
       'rejects an invalid supplied score even when another score is missing',

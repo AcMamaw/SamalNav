@@ -166,6 +166,13 @@ class _AssessmentSource implements CarsRecommendationAssessmentSource {
   }
 }
 
+class _FailingAssessmentSource implements CarsRecommendationAssessmentSource {
+  @override
+  Future<List<CarsRecommendationAssessmentRecord>> loadAssessments(
+    TripConfiguration trip,
+  ) => Future.error(StateError('synthetic source failure'));
+}
+
 class _TestPolicy implements CarsApprovedCriterionScoringPolicy {
   final Map<CarsCriterion, double?> scores;
   final Map<CarsCriterion, String?> references;
@@ -199,7 +206,7 @@ class _TestPolicy implements CarsApprovedCriterionScoringPolicy {
 }
 
 PreparedCarsRecommendationProvider _provider({
-  required _AssessmentSource source,
+  required CarsRecommendationAssessmentSource source,
   CarsApprovedCriterionScoringPolicy? policy,
 }) => PreparedCarsRecommendationProvider(
   source: source,
@@ -229,7 +236,8 @@ void main() {
     test(
       'prepares evidence and preserves the trip without inventing scores',
       () async {
-        final source = _AssessmentSource([_record(_input())]);
+        final input = _input();
+        final source = _AssessmentSource([_record(input)]);
         final trip = _trip();
         final package = await _provider(source: source).recommend(trip);
 
@@ -239,6 +247,20 @@ void main() {
         expect(source.receivedTrip!.durationDays, 1);
         expect(package.assessmentInputs.keys, [_id]);
         expect(package.assessmentInputs[_id]!.criteria.length, 6);
+        expect(
+          package
+              .assessmentInputs[_id]!
+              .criteria[CarsCriterion.publicDestinationRating]!
+              .evidence,
+          same(input.destination),
+        );
+        expect(
+          package
+              .assessmentInputs[_id]!
+              .criteria[CarsCriterion.publicDestinationRating]!
+              .inputStatus,
+          CarsAssessmentInputStatus.available,
+        );
         expect(package.ranking.ranked, isEmpty);
         expect(
           package.ranking.excluded.single.outcome,
@@ -250,6 +272,44 @@ void main() {
           everyElement(isNull),
         );
         expect(package.runReference.id, 'test-run-id');
+      },
+    );
+
+    test(
+      'interest activity provenance reaches the provider review package',
+      () async {
+        final retrievedAt = DateTime.utc(2026, 11, 17);
+        final assessment = CarsInterestActivityMatchAssessment(
+          status: CarsInterestActivityMatchStatus.matched,
+          matchedPreferenceIdentifiers: const {'interest-id'},
+          matchedActivityIdentifiers: const {'activity-category-id'},
+          mappingSourceReference: 'synthetic mapping fixture',
+          mappingVersion: 'test-v1',
+          activitySourceReference: 'synthetic activity fixture',
+          activityRetrievedAt: retrievedAt,
+          activityFreshUntil: DateTime.utc(2026, 11, 20),
+        );
+        final package = await _provider(
+          source: _AssessmentSource([_record(_input(interest: assessment))]),
+        ).recommend(_trip());
+
+        final evidence =
+            package
+                    .assessmentInputs[_id]!
+                    .criteria[CarsCriterion.interestActivityMatch]!
+                    .evidence
+                as CarsInterestActivityMatchAssessment;
+        expect(evidence.mappingVersion, 'test-v1');
+        expect(evidence.activitySourceReference, 'synthetic activity fixture');
+        expect(evidence.activityRetrievedAt, retrievedAt);
+        expect(evidence.matchedPreferenceIdentifiers, {'interest-id'});
+        expect(evidence.matchedActivityIdentifiers, {'activity-category-id'});
+        expect(
+          package.assessmentInputs[_id]!.criterionScores[CarsCriterion
+              .interestActivityMatch],
+          isNull,
+        );
+        expect(package.ranking.ranked, isEmpty);
       },
     );
 
@@ -282,6 +342,22 @@ void main() {
         expect(
           package.assessmentInputs[_id]!.criterionScores.values,
           everyElement(isNull),
+        );
+      },
+    );
+
+    test(
+      'empty source result stays empty and source failure is surfaced',
+      () async {
+        final empty = await _provider(
+          source: _AssessmentSource(const []),
+        ).recommend(_trip());
+        expect(empty.destinations, isEmpty);
+        expect(empty.ranking.ranked, isEmpty);
+        expect(empty.ranking.excluded, isEmpty);
+        await expectLater(
+          _provider(source: _FailingAssessmentSource()).recommend(_trip()),
+          throwsA(isA<StateError>()),
         );
       },
     );

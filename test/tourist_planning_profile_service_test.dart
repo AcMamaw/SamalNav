@@ -76,6 +76,25 @@ void main() {
     },
   );
 
+  test('profile mode accepts explicit JSON null but not missing or empty', () {
+    final nullProfile = TouristPlanningProfile.fromJson(
+      _profileJson(travelMode: null),
+    );
+    expect(nullProfile.travelMode, isNull);
+    expect(nullProfile.toJson().containsKey('travel_mode'), isTrue);
+    expect(nullProfile.toJson()['travel_mode'], isNull);
+
+    final missingMode = _profileJson()..remove('travel_mode');
+    expect(
+      () => TouristPlanningProfile.fromJson(missingMode),
+      throwsA(isA<FormatException>()),
+    );
+    expect(
+      () => TouristPlanningProfile.fromJson(_profileJson(travelMode: '')),
+      throwsA(isA<FormatException>()),
+    );
+  });
+
   test(
     'fetch returns null for an empty result, not for request errors',
     () async {
@@ -162,10 +181,100 @@ void main() {
       final body = jsonDecode(request.body) as Map<String, dynamic>;
       expect(body['budget_min'], 0.0);
       expect(body['budget_max'], 5000.0);
+      expect(body.containsKey('travel_mode'), isFalse);
       expect(body.containsKey('user_id'), isFalse);
       expect(body.containsKey('id'), isFalse);
     },
   );
+
+  test(
+    'unrelated updates preserve canonical, legacy, unknown, and historical values',
+    () async {
+      for (final rawValue in [
+        'walking',
+        'bicycle',
+        'motorcycle',
+        'car',
+        'public transportation',
+        'publicTransportation',
+        'public_transportation',
+        'jeepney',
+        'tricycle',
+        'multicab',
+        'van',
+        'bus',
+        'ferry',
+        'boat',
+        'retired_local_mode',
+        'inactive_historical_mode',
+      ]) {
+        httpClient.clearRequests();
+        httpClient.handler = (request) async {
+          if (request.method == 'GET') {
+            return _Reply(200, [_profileJson(travelMode: rawValue)]);
+          }
+          if (request.method == 'PATCH') {
+            return _Reply(200, _profileJson(travelMode: rawValue));
+          }
+          throw StateError('Unexpected request method: ${request.method}');
+        };
+
+        final loaded = (await service.fetchCurrent())!;
+        expect(loaded.profile.travelMode, rawValue);
+        final updated = await service.updateCurrent(
+          loaded.profile,
+          policy: _testPolicy(supportedTravelModes: {rawValue}),
+        );
+        expect(updated.profile.travelMode, rawValue);
+        final patch = httpClient.requests.last;
+        expect(patch.method, 'PATCH');
+        expect(
+          (jsonDecode(patch.body) as Map<String, dynamic>).containsKey(
+            'travel_mode',
+          ),
+          isFalse,
+        );
+      }
+    },
+  );
+
+  test('nullable local mode never becomes a remote null write', () async {
+    httpClient.handler = (request) async {
+      if (request.method == 'PATCH') return _Reply(200, _profileJson());
+      throw StateError('Unexpected local mock request method.');
+    };
+
+    final profile = TouristPlanningProfile.fromJson(
+      _profileJson(travelMode: null),
+    );
+    final saved = await service.updateCurrent(profile, policy: _testPolicy());
+
+    final body = jsonDecode(httpClient.requests.single.body) as Map;
+    expect(body.containsKey('travel_mode'), isFalse);
+    expect(saved.profile.travelMode, 'walking');
+    expect(saved.preferencesConfirmed, isFalse);
+  });
+
+  test('update distinguishes storage and network failures', () async {
+    httpClient.handler = (_) async => _Reply(403, {
+      'code': '42501',
+      'message': 'permission denied by row-level security policy',
+      'details': null,
+      'hint': null,
+    });
+    await expectLater(
+      service.updateCurrent(_profile(), policy: _testPolicy()),
+      throwsA(isA<TouristPlanningProfileStorageException>()),
+    );
+
+    httpClient.clearRequests();
+    httpClient.handler = (_) async =>
+        throw const SocketException('Synthetic transport failure.');
+    await expectLater(
+      service.updateCurrent(_profile(), policy: _testPolicy()),
+      throwsA(isA<TouristPlanningProfileNetworkException>()),
+    );
+  });
 
   test('update rejects another user before sending an HTTP request', () async {
     final profile = _profile(userId: _otherUserId);
@@ -227,20 +336,24 @@ void main() {
   });
 }
 
-TouristPlanningProfileValidationPolicy _testPolicy() =>
-    TouristPlanningProfileValidationPolicy(
-      // Synthetic values for this test fixture only; these are not project
-      // validation decisions or deployed category/travel-mode values.
-      maximumHoursPerDay: 24,
-      maximumTripDays: 30,
-      validCategoryCodes: {'test-category'},
-      supportedTravelModes: {'walking'},
-    );
+TouristPlanningProfileValidationPolicy _testPolicy({
+  Set<String> supportedTravelModes = const {'walking'},
+}) => TouristPlanningProfileValidationPolicy(
+  // Synthetic values for this test fixture only; these are not project
+  // validation decisions or deployed category/travel-mode values.
+  maximumHoursPerDay: 24,
+  maximumTripDays: 30,
+  validCategoryCodes: {'test-category'},
+  supportedTravelModes: supportedTravelModes,
+);
 
 TouristPlanningProfile _profile({String userId = _userId}) =>
     TouristPlanningProfile.fromJson(_profileJson(userId: userId));
 
-Map<String, dynamic> _profileJson({String userId = _userId}) => {
+Map<String, dynamic> _profileJson({
+  String userId = _userId,
+  Object? travelMode = 'walking',
+}) => {
   'id': _profileId,
   'user_id': userId,
   'budget_min': 0,
@@ -250,7 +363,7 @@ Map<String, dynamic> _profileJson({String userId = _userId}) => {
   'preferred_categories': <String>[],
   'current_lat': null,
   'current_lng': null,
-  'travel_mode': 'walking',
+  'travel_mode': travelMode,
   'created_at': '2026-03-12T08:30:00Z',
   'number_of_tourists': 1,
   'children_count': 0,

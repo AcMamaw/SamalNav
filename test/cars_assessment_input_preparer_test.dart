@@ -15,6 +15,7 @@ DestinationRecord destination({
   bool includeRating = true,
   bool verified = true,
   String? source = 'official rating source',
+  bool includeTimestamps = true,
   DateTime? retrievedAt,
   DateTime? freshUntil,
   DestinationRecordSource recordSource = DestinationRecordSource.database,
@@ -28,8 +29,8 @@ DestinationRecord destination({
     if (includeRating) 'rating_average': rating,
     'rating_is_verified': verified,
     'rating_source': source,
-    'rating_retrieved_at': retrieval.toIso8601String(),
-    'rating_fresh_until': freshness.toIso8601String(),
+    if (includeTimestamps) 'rating_retrieved_at': retrieval.toIso8601String(),
+    if (includeTimestamps) 'rating_fresh_until': freshness.toIso8601String(),
   };
   return DestinationRecord.fromJson(row, source: recordSource);
 }
@@ -190,6 +191,29 @@ void main() {
     );
 
     test(
+      'policy boundary accepts both endpoints of the current score scale',
+      () {
+        for (final endpoint in [
+          CarsScoreContract.minimum,
+          CarsScoreContract.maximum,
+        ]) {
+          final prepared = prepare(
+            completeInput(),
+            policy: TestApprovedScoringPolicy(
+              outputs: {
+                for (final criterion in CarsCriterion.values)
+                  criterion: endpoint,
+              },
+            ),
+          );
+
+          expect(prepared.criterionScores.values, everyElement(endpoint));
+          expect(prepared.hasAllCriterionScores, isTrue);
+        }
+      },
+    );
+
+    test(
       'without a scoring rule, assessed evidence never becomes a numeric score',
       () {
         final prepared = prepare(completeInput());
@@ -288,6 +312,38 @@ void main() {
       );
     });
 
+    test('activity evidence states remain distinct and unscored', () {
+      final cases =
+          <CarsInterestActivityMatchStatus, CarsAssessmentInputStatus>{
+            CarsInterestActivityMatchStatus.activityRelationshipsIncomplete:
+                CarsAssessmentInputStatus.insufficientData,
+            CarsInterestActivityMatchStatus.duplicateActivityIdentifiers:
+                CarsAssessmentInputStatus.invalid,
+            CarsInterestActivityMatchStatus.invalidActivityEvidence:
+                CarsAssessmentInputStatus.invalid,
+            CarsInterestActivityMatchStatus.inactiveActivityRecords:
+                CarsAssessmentInputStatus.insufficientData,
+            CarsInterestActivityMatchStatus.staleActivityEvidence:
+                CarsAssessmentInputStatus.stale,
+          };
+      for (final entry in cases.entries) {
+        final prepared = prepare(
+          completeInput(
+            interest: CarsInterestActivityMatchAssessment(status: entry.key),
+          ),
+          policy: TestApprovedScoringPolicy(),
+        );
+        final criterion =
+            prepared.criteria[CarsCriterion.interestActivityMatch]!;
+        expect(criterion.inputStatus, entry.value);
+        expect(criterion.criterionScore, isNull);
+        expect(
+          prepared.criterionScores[CarsCriterion.interestActivityMatch],
+          isNull,
+        );
+      }
+    });
+
     test('stale rating, weather, and route evidence cannot be scored', () {
       final prepared = prepare(
         completeInput(
@@ -358,6 +414,52 @@ void main() {
         );
       },
     );
+
+    test(
+      'default-like zero without provenance is insufficient, not scored',
+      () {
+        final prepared = prepare(
+          completeInput(record: destination(rating: 0, source: null)),
+          policy: TestApprovedScoringPolicy(),
+        );
+        final rating =
+            prepared.criteria[CarsCriterion.publicDestinationRating]!;
+
+        expect(rating.inputStatus, CarsAssessmentInputStatus.insufficientData);
+        expect(rating.criterionScore, isNull);
+        expect(
+          rating.scoreStatus,
+          CarsScorePreparationStatus.evidenceNotScoreable,
+        );
+      },
+    );
+
+    test('verified zero remains evidence but has no unapproved score', () {
+      final prepared = prepare(completeInput(record: destination(rating: 0)));
+      final rating = prepared.criteria[CarsCriterion.publicDestinationRating]!;
+
+      expect(rating.inputStatus, CarsAssessmentInputStatus.available);
+      expect(rating.evidence, isA<DestinationRecord>());
+      expect(rating.criterionScore, isNull);
+      expect(rating.scoreStatus, CarsScorePreparationStatus.noApprovedRule);
+    });
+
+    test('rating with missing source or retrieval time remains unscored', () {
+      for (final record in [
+        destination(source: null),
+        destination(includeTimestamps: false),
+      ]) {
+        final prepared = prepare(
+          completeInput(record: record),
+          policy: TestApprovedScoringPolicy(),
+        );
+        final rating =
+            prepared.criteria[CarsCriterion.publicDestinationRating]!;
+
+        expect(rating.inputStatus, CarsAssessmentInputStatus.insufficientData);
+        expect(rating.criterionScore, isNull);
+      }
+    });
 
     test('no selected preference is not an assumed match or zero score', () {
       final prepared = prepare(

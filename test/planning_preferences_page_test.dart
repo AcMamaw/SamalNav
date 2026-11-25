@@ -172,18 +172,31 @@ void main() {
     expect(find.textContaining('Sign in before accessing'), findsOneWidget);
   });
 
-  testWidgets('allows approved travel modes without changing stored origin', (
+  testWidgets('shows the saved preference read-only without changing it', (
     tester,
   ) async {
-    final service = _FakeProfileService(client, initial: _snapshot());
+    final service = _FakeProfileService(
+      client,
+      initial: _snapshot(travelMode: 'public transportation'),
+    );
     await tester.pumpWidget(_app(service));
     await tester.pumpAndSettle();
 
-    await _scrollTo(tester, find.byKey(const Key('travel_mode_dropdown')));
-    await tester.tap(find.byKey(const Key('travel_mode_dropdown')));
-    await tester.pumpAndSettle();
-    await tester.tap(find.text('public transportation').last);
-    await tester.pumpAndSettle();
+    await _scrollTo(
+      tester,
+      find.byKey(const Key('saved_travel_mode_readonly')),
+    );
+    expect(
+      find.text(
+        'public transportation (legacy alias for public_transportation; preserved)',
+      ),
+      findsOneWidget,
+    );
+    expect(find.byKey(const Key('travel_mode_dropdown')), findsNothing);
+    expect(
+      find.textContaining('Saved preference is unconfirmed'),
+      findsOneWidget,
+    );
 
     await _tapReviewButton(tester);
     await tester.tap(find.byKey(const Key('confirm_save_preferences')));
@@ -192,6 +205,60 @@ void main() {
     expect(service.updatedProfile!.travelMode, 'public transportation');
     expect(service.updatedProfile!.currentLat, 12.5);
     expect(service.updatedProfile!.currentLng, 125.4);
+  });
+
+  testWidgets('shows unknown saved preference without substitution', (
+    tester,
+  ) async {
+    final service = _FakeProfileService(
+      client,
+      initial: _snapshot(travelMode: 'legacy_unknown_mode'),
+    );
+    await tester.pumpWidget(_app(service));
+    await tester.pumpAndSettle();
+
+    await _scrollTo(
+      tester,
+      find.byKey(const Key('saved_travel_mode_readonly')),
+    );
+    expect(
+      find.text('legacy_unknown_mode (unrecognized; preserved)'),
+      findsOneWidget,
+    );
+    expect(find.byKey(const Key('travel_mode_dropdown')), findsNothing);
+  });
+
+  testWidgets('failed update keeps the last saved preference visible', (
+    tester,
+  ) async {
+    final service = _FakeProfileService(client, initial: _snapshot())
+      ..updateError = const TouristPlanningProfileNetworkException(
+        'A network error prevented saving the planning profile.',
+      );
+    await tester.pumpWidget(_app(service));
+    await tester.pumpAndSettle();
+
+    await _enter(tester, 'budget_min_field', '250');
+    await _tapReviewButton(tester);
+    await tester.tap(find.byKey(const Key('confirm_save_preferences')));
+    await tester.pumpAndSettle();
+
+    expect(service.updateCalls, 1);
+    expect(service.updatedProfile, isNull);
+    expect(service.initial!.profile.travelMode, 'walking');
+    await _scrollTo(
+      tester,
+      find.byKey(const Key('saved_travel_mode_readonly')),
+    );
+    expect(find.byKey(const Key('saved_travel_mode_readonly')), findsOneWidget);
+    expect(
+      find.textContaining('Your last saved profile is unchanged.'),
+      findsOneWidget,
+    );
+    expect(
+      find.text('Preferences saved. Profile remains unconfirmed.'),
+      findsNothing,
+    );
   });
 }
 
@@ -229,6 +296,7 @@ Future<void> _tapReviewButton(WidgetTester tester) async {
 TouristPlanningProfileSnapshot _snapshot({
   int? childrenCount = 1,
   int? eldersCount = 1,
+  String? travelMode = 'walking',
 }) => TouristPlanningProfileSnapshot(
   profile: TouristPlanningProfile.fromJson({
     'id': '2f16d423-e5d3-4e2f-9fa9-85a7bb2ca504',
@@ -240,7 +308,7 @@ TouristPlanningProfileSnapshot _snapshot({
     'preferred_categories': ['fixture-existing-category-value'],
     'current_lat': 12.5,
     'current_lng': 125.4,
-    'travel_mode': 'walking',
+    'travel_mode': travelMode,
     'created_at': '2026-03-12T08:30:00Z',
     'number_of_tourists': 5,
     'children_count': childrenCount,
@@ -255,6 +323,7 @@ class _FakeProfileService extends TouristPlanningProfileService {
 
   TouristPlanningProfileSnapshot? initial;
   TouristPlanningProfileServiceException? fetchError;
+  Object? updateError;
   int createCalls = 0;
   int updateCalls = 0;
   TouristPlanningProfile? updatedProfile;
@@ -279,6 +348,7 @@ class _FakeProfileService extends TouristPlanningProfileService {
     required TouristPlanningProfileValidationPolicy policy,
   }) async {
     updateCalls++;
+    if (updateError != null) throw updateError!;
     final validation = profile.validate(policy);
     if (!validation.isValid) {
       throw TouristPlanningProfileValidationException(validation.errors);

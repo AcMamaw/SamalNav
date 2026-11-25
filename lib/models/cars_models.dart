@@ -11,9 +11,23 @@ enum CarsCriterion {
   availableTravelTimeCompatibility,
 }
 
+/// The score scale currently used consistently by the engine and UI.
+///
+/// The original research methodology needed to confirm this scale has not
+/// been located, so this records the existing runtime contract rather than
+/// approving or migrating to a different scale.
+abstract final class CarsScoreContract {
+  static const double minimum = 0;
+  static const double maximum = 100;
+
+  static bool accepts(double score) =>
+      score.isFinite && score >= minimum && score <= maximum;
+}
+
 /// Raw contextual inputs are kept separate from normalized criterion scores.
 /// These values are descriptive only; CARS does not infer score formulas from
-/// them. A separately approved scoring policy must produce 0-100 scores.
+/// them. A separately approved scoring policy must produce scores accepted by
+/// [CarsScoreContract].
 class CarsRawContext {
   final Set<String> touristInterestCodes;
   final Set<String> destinationActivityCodes;
